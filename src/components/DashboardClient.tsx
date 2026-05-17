@@ -295,7 +295,7 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role }:
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-4 text-sm text-gray-500 max-w-xs truncate" title={decision?.reason || ''}>{decision?.reason || '-'}</td>
+                          <td className="px-3 py-4 text-sm text-gray-500 whitespace-normal">{decision?.reason || '-'}</td>
                         </tr>
                       )
                     })}
