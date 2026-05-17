@@ -57,7 +57,7 @@ export default function UploadClaimsPage() {
 
         const rows = lines.slice(1).map(line => {
           const values = line.split(',').map(v => v.trim())
-          const rowData: Record<string, any> = {}
+          const rowData: Record<string, string> = {}
           headers.forEach((header, index) => {
             rowData[header] = values[index]
           })
@@ -96,8 +96,8 @@ export default function UploadClaimsPage() {
 
         setSuccess(`Successfully uploaded ${claimsToInsert.length} claims.`)
         setFile(null)
-      } catch (err: any) {
-        setError(err.message || 'An error occurred during upload.')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred during upload.')
       } finally {
         setUploading(false)
       }
