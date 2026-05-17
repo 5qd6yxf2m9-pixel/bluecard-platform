@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { processClain } from '@/lib/rulesEngine'
 
-export async function POST(request: Request) {
+export async function POST(_request: Request) {
   try {
     const supabase = createClient()
     
@@ -96,7 +96,8 @@ export async function POST(request: Request) {
       total: claims.length
     })
 
-  } catch (error: any) {
+  } catch (err) {
+    const error = err as Record<string, unknown>
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 })
   }
 }
