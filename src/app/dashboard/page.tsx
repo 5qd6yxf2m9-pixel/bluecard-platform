@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -37,7 +38,13 @@ export default async function DashboardPage() {
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full">
         <div className="bg-white overflow-hidden shadow rounded-lg border-2 border-dashed border-gray-300">
           <div className="px-4 py-12 sm:p-16 text-center">
-            <p className="text-lg text-gray-500">Upload claims to get started</p>
+            <p className="text-lg text-gray-500 mb-6">Upload claims to get started</p>
+            <Link
+              href="/dashboard/upload"
+              className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            >
+              Upload Claims
+            </Link>
           </div>
         </div>
       </main>
