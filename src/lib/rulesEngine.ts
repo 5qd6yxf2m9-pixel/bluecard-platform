@@ -20,7 +20,7 @@ export interface RoutingDecision {
 }
 
 export async function processClain(claim: Claim, supabase: SupabaseClient): Promise<RoutingDecision> {
-  const { client_id, alpha_prefix, product_type, charge_amount } = claim
+  const { client_id, product_type, charge_amount } = claim
 
   // 1. Check if product_type is 'MA' or 'FEP'
   if (product_type === 'MA' || product_type === 'FEP') {
