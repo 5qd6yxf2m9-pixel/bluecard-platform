@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { ProcessClaimsButton } from '@/components/ProcessClaimsButton'
+import { DashboardClient, ClaimWithDecision, DashboardStats } from '@/components/DashboardClient'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -11,47 +10,56 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
-  const signOut = async () => {
-    'use server'
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    redirect('/login')
+  // Fetch client ID
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('client_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.client_id) {
+    // Handle edge case where profile doesn't exist
+    return <div className="p-8 text-red-500">Error: Profile or client_id not found.</div>
   }
 
+  // Fetch claims and their routing decisions
+  const { data: claimsData } = await supabase
+    .from('claims')
+    .select('*, routing_decisions(*)')
+    .eq('client_id', profile.client_id)
+    .order('created_at', { ascending: false })
+
+  const tableData = (claimsData || []) as unknown as ClaimWithDecision[]
+
+  // Calculate Stats
+  const stats: DashboardStats = {
+    totalProcessed: 0,
+    approvedCount: 0,
+    manualReviewCount: 0,
+    totalUplift: 0,
+  }
+
+  tableData.forEach((claim) => {
+    if (claim.routing_decisions && claim.routing_decisions.length > 0) {
+      stats.totalProcessed++
+      const decision = claim.routing_decisions[0]
+      if (decision.decision === 'approved') {
+        stats.approvedCount++
+      } else if (decision.decision === 'manual_review') {
+        stats.manualReviewCount++
+      }
+      if (decision.uplift_amount) {
+        stats.totalUplift += decision.uplift_amount
+      }
+    }
+  })
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-gray-900">BlueCard Platform</h1>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600">{user.email}</span>
-            <form action={signOut}>
-              <button
-                type="submit"
-                className="text-sm text-indigo-600 hover:text-indigo-900 font-medium"
-              >
-                Sign out
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full">
-        <div className="bg-white overflow-hidden shadow rounded-lg border-2 border-dashed border-gray-300">
-          <div className="px-4 py-12 sm:p-16 text-center">
-            <p className="text-lg text-gray-500 mb-6">Upload claims to get started</p>
-            <div className="flex justify-center space-x-4">
-              <Link
-                href="/dashboard/upload"
-                className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-              >
-                Upload Claims
-              </Link>
-              <ProcessClaimsButton />
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+    <DashboardClient 
+      userEmail={user.email || ''} 
+      clientId={profile.client_id}
+      stats={stats}
+      tableData={tableData}
+    />
   )
 }
