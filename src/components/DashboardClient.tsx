@@ -46,6 +46,27 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role }:
   const router = useRouter()
   const supabase = createClient()
 
+  const manualReviewClaims = tableData.filter(claim => claim.routing_decisions?.[0]?.decision === 'manual_review')
+
+  const handleManualRoute = async (decisionId: string, plan: string) => {
+    try {
+      const { error: updateError } = await supabase
+        .from('routing_decisions')
+        .update({ 
+          decision: 'approved', 
+          recommended_plan: plan, 
+          reason: 'Manually routed by billing staff' 
+        })
+        .eq('id', decisionId)
+      
+      if (updateError) throw new Error()
+      
+      router.refresh()
+    } catch {
+      alert('Failed to update routing decision.')
+    }
+  }
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -296,6 +317,63 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role }:
                             )}
                           </td>
                           <td className="px-3 py-4 text-sm text-gray-500 whitespace-normal">{decision?.reason || '-'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* MANUAL REVIEW QUEUE */}
+        <div className="bg-white shadow sm:rounded-lg overflow-hidden">
+          <div className="px-4 py-5 sm:px-6">
+            <h3 className="text-base font-semibold leading-6 text-gray-900">Manual Review Queue</h3>
+          </div>
+          <div className="border-t border-gray-200">
+            {manualReviewClaims.length === 0 ? (
+              <div className="px-4 py-12 text-center text-sm text-gray-500">
+                No claims require manual review.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-300">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Patient ID</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Reason</th>
+                      <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900 sm:pr-6">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {manualReviewClaims.map((claim) => {
+                      const decision = claim.routing_decisions[0]
+                      return (
+                        <tr key={claim.id}>
+                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
+                          <td className="px-3 py-4 text-sm text-gray-500 whitespace-normal">{decision.reason}</td>
+                          <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
+                            <button
+                              onClick={() => handleManualRoute(decision.id, 'Anthem')}
+                              className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1.5 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-100"
+                            >
+                              Route to Anthem
+                            </button>
+                            <button
+                              onClick={() => handleManualRoute(decision.id, 'Blue Shield')}
+                              className="inline-flex items-center rounded-md bg-indigo-50 px-2.5 py-1.5 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
+                            >
+                              Route to Blue Shield
+                            </button>
+                          </td>
                         </tr>
                       )
                     })}
