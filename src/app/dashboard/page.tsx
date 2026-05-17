@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { ProcessClaimsButton } from '@/components/ProcessClaimsButton'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -39,12 +40,15 @@ export default async function DashboardPage() {
         <div className="bg-white overflow-hidden shadow rounded-lg border-2 border-dashed border-gray-300">
           <div className="px-4 py-12 sm:p-16 text-center">
             <p className="text-lg text-gray-500 mb-6">Upload claims to get started</p>
-            <Link
-              href="/dashboard/upload"
-              className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-            >
-              Upload Claims
-            </Link>
+            <div className="flex justify-center space-x-4">
+              <Link
+                href="/dashboard/upload"
+                className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+              >
+                Upload Claims
+              </Link>
+              <ProcessClaimsButton />
+            </div>
           </div>
         </div>
       </main>
