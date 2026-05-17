@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   // Fetch client ID
   const { data: profile } = await supabase
     .from('profiles')
-    .select('client_id')
+    .select('client_id, role')
     .eq('id', user.id)
     .single()
 
@@ -60,6 +60,7 @@ export default async function DashboardPage() {
       clientId={profile.client_id}
       stats={stats}
       tableData={tableData}
+      role={profile.role}
     />
   )
 }

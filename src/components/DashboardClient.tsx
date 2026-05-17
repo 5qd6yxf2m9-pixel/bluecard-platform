@@ -37,9 +37,10 @@ interface DashboardClientProps {
   clientId: string;
   stats: DashboardStats;
   tableData: ClaimWithDecision[];
+  role?: string;
 }
 
-export function DashboardClient({ userEmail, clientId, stats, tableData }: DashboardClientProps) {
+export function DashboardClient({ userEmail, clientId, stats, tableData, role }: DashboardClientProps) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -155,6 +156,11 @@ export function DashboardClient({ userEmail, clientId, stats, tableData }: Dashb
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3">
             <h1 className="text-xl font-bold text-blue-800">BlueCard Platform</h1>
+            {role === 'admin' && (
+              <a href="/admin" className="ml-4 text-sm font-medium text-indigo-600 hover:text-indigo-900">
+                Admin Dashboard
+              </a>
+            )}
           </div>
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-600">{userEmail}</span>
