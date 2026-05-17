@@ -34,7 +34,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <h1 className="text-xl font-bold text-blue-800">Admin Panel</h1>
         </div>
         <nav className="flex-1 p-4 space-y-2">
-          <Link href="/dashboard" className="block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 font-medium">Main Dashboard</Link>
+          <Link href="/dashboard" className="block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 font-medium">&larr; Back to Dashboard</Link>
           <Link href="/admin" className="block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 font-medium">Admin Home</Link>
           <Link href="/admin/clients" className="block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 font-medium">Clients</Link>
           <Link href="/admin/prefixes" className="block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 font-medium">Prefix Manager</Link>
