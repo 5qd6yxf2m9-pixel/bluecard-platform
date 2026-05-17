@@ -31,13 +31,14 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
   }
 
   // 2. Check alpha_prefix_reference
-  const { data: prefixRef, error: prefixError } = await supabase
+  const { data: prefixData } = await supabase
     .from('alpha_prefix_reference')
-    .select('is_active')
-    .eq('alpha_prefix', alpha_prefix)
+    .select('*')
+    .eq('prefix', claim.alpha_prefix)
+    .eq('is_active', true)
     .single()
 
-  if (prefixError || !prefixRef || prefixRef.is_active === false) {
+  if (!prefixData) {
     return {
       decision: 'manual_review',
       reason: 'Invalid or inactive alpha prefix'
