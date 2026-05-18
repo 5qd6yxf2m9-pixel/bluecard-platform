@@ -1,6 +1,6 @@
 // REMINDER: Run the following SQL migrations in Supabase console:
-// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS confidence_score integer;
-// ALTER TABLE alpha_prefix_reference ADD COLUMN IF NOT EXISTS validated_date date;
+// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS financial_tier text;
+// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS manual_review_code text;
 
 import { SupabaseClient } from '@supabase/supabase-js'
 
@@ -24,6 +24,15 @@ export interface RoutingDecision {
   anthem_expected?: number;
   blueshield_expected?: number;
   confidence_score?: number;
+  financial_tier?: string;
+  manual_review_code?: string;
+}
+
+export function getFinancialTier(uplift: number): string {
+  if (uplift < 500) return "Tier 1 - Low"
+  if (uplift <= 5000) return "Tier 2 - Moderate"
+  if (uplift <= 25000) return "Tier 3 - High"
+  return "Tier 4 - Critical"
 }
 
 export async function processClain(
@@ -83,8 +92,11 @@ export async function processClain(
   const anthemExpected = anthemContract ? Number((charge_amount * anthemContract.reimbursement_rate).toFixed(2)) : null
   const blueshieldExpected = bsContract ? Number((charge_amount * bsContract.reimbursement_rate).toFixed(2)) : null
 
-  // Start confidence score at 100
-  let score = 100
+  // Calculate expected uplift if both plans have contracts
+  let upliftAmount = 0
+  if (anthemExpected !== null && blueshieldExpected !== null) {
+    upliftAmount = Math.abs(anthemExpected - blueshieldExpected)
+  }
 
   // 1. Look up the alpha prefix in alpha_prefix_reference
   let prefixData: Record<string, unknown> | undefined
@@ -103,172 +115,178 @@ export async function processClain(
     }
   }
 
-  if (!prefixData) {
-    return {
-      decision: 'manual_review',
-      reason: 'Invalid or inactive alpha prefix',
-      anthem_expected: anthemExpected || undefined,
-      blueshield_expected: blueshieldExpected || undefined,
-      confidence_score: 0
-    }
-  }
-
-  // DOS Validation Step
+  // DOS Validation setup
   const claimDate = new Date(claim.dos)
   const today = new Date()
-
-  // If DOS is in the future
-  if (claimDate > today) {
-    return {
-      decision: 'manual_review',
-      reason: 'Invalid date of service - future date detected',
-      anthem_expected: anthemExpected || undefined,
-      blueshield_expected: blueshieldExpected || undefined,
-      confidence_score: 0
-    }
-  }
-
   const msPerDay = 24 * 60 * 60 * 1000
   const diffDays = (today.getTime() - claimDate.getTime()) / msPerDay
-  let ageWarning = ''
 
-  // If DOS is more than 365 days before today
-  if (diffDays > 365) {
-    score -= 10
-    ageWarning = 'Warning: Date of service is over 1 year old - prefix may have changed'
+  // Define Force Exclusions
+  const isPrefixInvalid = !prefixData
+  const isFutureDos = claimDate > today
+  const isMA = product_type === 'MA'
+  const isFEP = product_type === 'FEP'
+  const isMAorFEP = isMA || isFEP
+  const hasNoContracts = contracts.length === 0
+
+  // 1. ELIGIBILITY CONFIDENCE (max 30 points)
+  let eligibilityScore = 0
+  const knownProducts = ['PPO', 'POS', 'HMO', 'EPO', 'MA', 'FEP']
+
+  if (!claim.alpha_prefix) {
+    eligibilityScore -= 30
+  } else if (!isPrefixInvalid) {
+    eligibilityScore += 10
+  } else {
+    eligibilityScore -= 25
   }
 
-  // 2. If found and is a BlueCard Program prefix, the claim is valid and eligible for comparison
-
-  // 3. Check if product_type is 'MA' or 'FEP'
-  if (product_type === 'MA' || product_type === 'FEP') {
-    return {
-      decision: 'manual_review',
-      reason: 'Medicare Advantage or FEP product excluded from BlueCard routing',
-      confidence_score: 0
-    }
+  if (!isMAorFEP) {
+    eligibilityScore += 10
+    eligibilityScore += 5
+  } else {
+    eligibilityScore -= 100
   }
 
-  // 5. If neither plan has a contract
-  if (contracts.length === 0) {
-    let hasOtherContracts = false
-    if (contractMap) {
-      hasOtherContracts = contractMap.size > 0
+  if (product_type === 'PPO' || product_type === 'POS') {
+    eligibilityScore += 5
+  }
+
+  if (!knownProducts.includes(product_type)) {
+    eligibilityScore -= 15
+  }
+
+  eligibilityScore = Math.min(30, eligibilityScore)
+
+  // 2. DOS/CONTRACT CONFIDENCE (max 25 points)
+  let dosContractScore = 0
+
+  if (contracts.length === 2) {
+    dosContractScore += 10
+  } else if (contracts.length === 1) {
+    dosContractScore += 5
+  } else if (hasNoContracts) {
+    dosContractScore -= 25
+  }
+
+  if (isFutureDos) {
+    dosContractScore -= 100
+  } else if (diffDays <= 365) {
+    dosContractScore += 10
+  } else {
+    dosContractScore -= 15
+  }
+
+  dosContractScore = Math.min(25, dosContractScore)
+
+  // 3. REIMBURSEMENT CONFIDENCE (max 25 points)
+  let reimbursementScore = 0
+
+  if (contracts.length === 2) {
+    if (upliftAmount > 500) {
+      reimbursementScore += 25
+    } else if (upliftAmount >= 100) {
+      reimbursementScore += 15
     } else {
-      const { data: anyContracts } = await supabase
-        .from('plan_contracts')
-        .select('id')
-        .eq('client_id', client_id)
-        .limit(1)
-      hasOtherContracts = !!anyContracts && anyContracts.length > 0
+      reimbursementScore += 5
     }
-
-    const reason = hasOtherContracts
-      ? `No contracts found for product type ${product_type} - add contract rates in admin`
-      : 'No contracts found for this product type'
-
-    return {
-      decision: 'manual_review',
-      reason,
-      confidence_score: 0
-    }
+  } else if (contracts.length === 1) {
+    reimbursementScore += 10
+  } else {
+    reimbursementScore += 0
   }
 
-  // 6. If only one plan has a contract, route to that plan
-  if (contracts.length === 1) {
-    score -= 20
-    score -= 15 // Only 1 contract means comparison difference is effectively $0 (< $50)
+  reimbursementScore = Math.min(25, reimbursementScore)
 
-    if (charge_amount < 500) {
-      score -= 10
-    }
+  // 4. OPERATIONAL RISK (max 20 points)
+  let operationalRiskScore = 0
+  const hasDosWarning = diffDays > 365
 
-    score = Math.max(0, score)
-    const finalDecision = score >= 60 ? 'approved' : 'manual_review'
-    
-    const reasonParts: string[] = []
-    
-    // 1. Decision reason (always first)
-    reasonParts.push(`Only one contracted plan found: ${contracts[0].plan_name}`)
-    
-    // 2. Confidence note (always second)
-    if (score < 60) {
-      reasonParts.push(`Low confidence (${score}/100)`)
-    } else if (score >= 60 && score <= 84) {
-      reasonParts.push(`Medium confidence verify before billing`)
-    }
-
-    // 3. Warning messages (always last)
-    if (ageWarning) {
-      reasonParts.push(ageWarning)
-    }
-
-    const finalReason = reasonParts.join('|')
-
-    return {
-      decision: finalDecision,
-      reason: finalReason,
-      recommended_plan: contracts[0].plan_name,
-      uplift_amount: 0,
-      anthem_expected: anthemExpected || undefined,
-      blueshield_expected: blueshieldExpected || undefined,
-      confidence_score: score
-    }
+  if (!hasNoContracts && !hasDosWarning) {
+    operationalRiskScore += 20
+  } else {
+    if (hasNoContracts) operationalRiskScore -= 10
+    if (hasDosWarning) operationalRiskScore -= 10
   }
 
-  // 7. If both plans have contracts, compare expected reimbursement
-  const sortedContracts = contracts.sort((a, b) => b.reimbursement_rate - a.reimbursement_rate)
-  const bestPlan = sortedContracts[0]
-  const alternatePlan = sortedContracts[1]
+  operationalRiskScore = Math.min(20, operationalRiskScore)
 
-  const bestReimbursement = charge_amount * bestPlan.reimbursement_rate
-  const alternateReimbursement = charge_amount * alternatePlan.reimbursement_rate
+  // CAPPED TOTAL SCORE
+  let totalScore = eligibilityScore + dosContractScore + reimbursementScore + operationalRiskScore
+  totalScore = Math.max(0, Math.min(100, totalScore))
 
-  // 8. Set uplift_amount as the difference between the two expected reimbursements
-  const upliftAmount = bestReimbursement - alternateReimbursement
-
-  // Calculate deductions
-  if (upliftAmount < 50) {
-    score -= 15
-  } else if (upliftAmount >= 50 && upliftAmount <= 100) {
-    score -= 5
-  }
-
-  if (charge_amount < 500) {
-    score -= 10
-  }
-
-  score = Math.max(0, score)
-  const finalDecision = score >= 60 ? 'approved' : 'manual_review'
-  
+  // Determine standard reason parts
   const reasonParts: string[] = []
-  
-  // 1. Decision reason (always first)
-  reasonParts.push(`Routed to ${bestPlan.plan_name} for highest reimbursement`)
-  
-  // 2. Confidence note (always second)
-  if (score < 60) {
-    reasonParts.push(`Low confidence (${score}/100)`)
-  } else if (score >= 60 && score <= 84) {
-    reasonParts.push(`Medium confidence verify before billing`)
+
+  // Assign decision
+  let decision: 'approved' | 'manual_review' = 'approved'
+  let manualReviewCode: string | undefined = undefined
+
+  if (isFutureDos) {
+    decision = 'manual_review'
+    manualReviewCode = 'MR-002'
+    reasonParts.push('Invalid date of service - future date detected')
+  } else if (isPrefixInvalid) {
+    decision = 'manual_review'
+    manualReviewCode = 'MR-001'
+    reasonParts.push('Invalid or inactive alpha prefix | Prefix not recognized')
+  } else if (isMA) {
+    decision = 'manual_review'
+    manualReviewCode = 'MR-008'
+    reasonParts.push('Medicare Advantage or FEP product excluded from BlueCard routing')
+  } else if (isFEP) {
+    decision = 'manual_review'
+    manualReviewCode = 'MR-009'
+    reasonParts.push('Medicare Advantage or FEP product excluded from BlueCard routing')
+  } else if (hasNoContracts) {
+    decision = 'manual_review'
+    manualReviewCode = 'MR-004'
+    reasonParts.push('No contracts found for this product type')
+  } else if (totalScore < 70) {
+    decision = 'manual_review'
+    reasonParts.push(`Uncertain or unsafe confidence level (${totalScore}/100)`)
+  } else {
+    // Approved Decision reasons
+    if (contracts.length === 2) {
+      const sortedContracts = contracts.sort((a, b) => b.reimbursement_rate - a.reimbursement_rate)
+      reasonParts.push(`Routed to ${sortedContracts[0].plan_name} for highest reimbursement`)
+    } else {
+      reasonParts.push(`Only one contracted plan found: ${contracts[0].plan_name}`)
+    }
   }
 
-  // 3. Warning messages (always last)
-  if (ageWarning) {
-    reasonParts.push(ageWarning)
+  // Add age warning to reason if over 1 year
+  if (hasDosWarning) {
+    reasonParts.push('Warning: Date of service is over 1 year old - prefix may have changed')
   }
 
   const finalReason = reasonParts.join('|')
+  const financialTier = getFinancialTier(upliftAmount)
 
-  // 9. Return approved decision or manual review depending on score
+  // Recommended and alternate plan setups
+  let recommendedPlan: string | undefined = undefined
+  let alternatePlan: string | undefined = undefined
+
+  if (contracts.length === 2) {
+    const sorted = [...contracts].sort((a, b) => b.reimbursement_rate - a.reimbursement_rate)
+    recommendedPlan = sorted[0].plan_name
+    alternatePlan = sorted[1].plan_name
+  } else if (contracts.length === 1) {
+    recommendedPlan = contracts[0].plan_name
+  }
+
   return {
-    decision: finalDecision,
+    claim_id: claim.id,
+    decision,
     reason: finalReason,
-    recommended_plan: bestPlan.plan_name,
-    alternate_plan: alternatePlan.plan_name,
+    recommended_plan: recommendedPlan,
+    alternate_plan: alternatePlan,
     uplift_amount: Number(upliftAmount.toFixed(2)),
     anthem_expected: anthemExpected || undefined,
     blueshield_expected: blueshieldExpected || undefined,
-    confidence_score: score
+    confidence_score: totalScore,
+    financial_tier: financialTier,
+    manual_review_code: manualReviewCode
   }
 }
+

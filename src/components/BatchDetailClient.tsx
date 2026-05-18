@@ -1,6 +1,8 @@
 // REMINDER: Run the following SQL migrations in Supabase console:
 // ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS anthem_expected numeric;
 // ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS blueshield_expected numeric;
+// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS financial_tier text;
+// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS manual_review_code text;
 
 'use client'
 
@@ -319,6 +321,37 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
     return [...nonWarnings, ...warnings]
   }
 
+  const renderPriorityBadge = (claim: ClaimWithDecision) => {
+    const decision = claim.routing_decisions?.[0]
+    const tier = decision?.financial_tier || 'Tier 1 - Low'
+    
+    if (tier.includes('Tier 4') || tier.includes('Critical')) {
+      return (
+        <span className="inline-flex items-center rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
+          Critical
+        </span>
+      )
+    } else if (tier.includes('Tier 3') || tier.includes('High')) {
+      return (
+        <span className="inline-flex items-center rounded-md bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800 ring-1 ring-inset ring-orange-600/20">
+          High
+        </span>
+      )
+    } else if (tier.includes('Tier 2') || tier.includes('Moderate')) {
+      return (
+        <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-600/20">
+          Moderate
+        </span>
+      )
+    } else {
+      return (
+        <span className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-700 ring-1 ring-inset ring-gray-500/10">
+          Low
+        </span>
+      )
+    }
+  }
+
   const renderConfidenceBadge = (claim: ClaimWithDecision) => {
     const decision = claim.routing_decisions?.[0]
     if (!decision) {
@@ -328,8 +361,6 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
         </span>
       )
     }
-
-    const isMAorFEP = claim.product_type === 'MA' || claim.product_type === 'FEP' || decision.reason.includes('Medicare Advantage') || decision.reason.includes('FEP');
 
     const isReviewed = decision.decision === 'approved' && (
       decision.reason === 'Manually routed by billing staff' || 
@@ -344,32 +375,36 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
       )
     }
 
-    if (isMAorFEP) {
-      return (
-        <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-500/10">
-          N/A
-        </span>
-      )
-    }
-
     const score = decision.confidence_score
     if (score !== null && score !== undefined) {
-      if (score >= 85) {
+      if (score >= 95) {
+        return (
+          <span className="inline-flex items-center rounded-md bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
+            Extremely High ({score})
+          </span>
+        )
+      } else if (score >= 85) {
         return (
           <span className="inline-flex items-center rounded-md bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
             High ({score})
           </span>
         )
-      } else if (score >= 60) {
+      } else if (score >= 70) {
         return (
           <span className="inline-flex items-center rounded-md bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
-            Medium ({score})
+            Moderate ({score})
+          </span>
+        )
+      } else if (score >= 50) {
+        return (
+          <span className="inline-flex items-center rounded-md bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800 ring-1 ring-inset ring-orange-600/20">
+            Uncertain ({score})
           </span>
         )
       } else {
         return (
           <span className="inline-flex items-center rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
-            Low ({score})
+            Unsafe ({score})
           </span>
         )
       }
@@ -377,22 +412,36 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
 
     return (
       <span className="inline-flex items-center rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
-        Low (0)
+        Unsafe (0)
       </span>
     )
   }
 
-  const invalidPrefixClaims = claims.filter(claim => 
-    claim.routing_decisions?.[0]?.reason?.includes('Invalid or inactive alpha prefix')
-  )
+  const invalidPrefixClaims = claims.filter(claim => {
+    const decision = claim.routing_decisions?.[0]
+    if (!decision) return false
+    return decision.reason?.includes('Invalid or inactive alpha prefix') || 
+           decision.reason?.includes('Invalid date of service') ||
+           decision.manual_review_code === 'MR-001' || 
+           decision.manual_review_code === 'MR-002'
+  })
 
-  const excludedProductsClaims = claims.filter(claim => 
-    claim.routing_decisions?.[0]?.reason?.includes('Medicare Advantage or FEP')
-  )
+  const excludedProductsClaims = claims.filter(claim => {
+    const decision = claim.routing_decisions?.[0]
+    if (!decision) return false
+    return decision.reason?.includes('Medicare Advantage or FEP') || 
+           decision.manual_review_code === 'MR-008' || 
+           decision.manual_review_code === 'MR-009'
+  })
 
-  const missingContractClaims = claims.filter(claim => 
-    claim.routing_decisions?.[0]?.reason?.includes('No contracts found')
-  )
+  const missingContractClaims = claims.filter(claim => {
+    const decision = claim.routing_decisions?.[0]
+    if (!decision) return false
+    return decision.reason?.includes('No contracts found') || 
+           decision.reason?.includes('Only one') ||
+           decision.reason?.includes('Uncertain') ||
+           decision.manual_review_code === 'MR-004'
+  })
 
   const totalPages = Math.ceil(totalCount / itemsPerPage)
 
@@ -603,6 +652,9 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                       <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/10">
                         {invalidPrefixClaims.length}
                       </span>
+                      <span className="text-xs text-gray-500 font-medium font-sans">
+                        · MR-001
+                      </span>
                     </div>
                     <p className="text-sm text-red-700 bg-red-50/50 border border-red-100 rounded-md px-4 py-2 mb-4">
                       Prefix not recognized. Verify member eligibility before routing.
@@ -702,6 +754,9 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                       <span className="inline-flex items-center rounded-full bg-yellow-50 px-2 py-0.5 text-xs font-semibold text-yellow-700 ring-1 ring-inset ring-yellow-600/10">
                         {excludedProductsClaims.length}
                       </span>
+                      <span className="text-xs text-gray-500 font-medium font-sans">
+                        · MR-008, MR-009
+                      </span>
                     </div>
                     <p className="text-sm text-yellow-700 bg-yellow-50/50 border border-yellow-100 rounded-md px-4 py-2 mb-4">
                       MA and FEP products are typically billed outside BlueCard. Verify before routing.
@@ -795,6 +850,9 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                       </h4>
                       <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/10">
                         {missingContractClaims.length}
+                      </span>
+                      <span className="text-xs text-gray-500 font-medium font-sans">
+                        · MR-004
                       </span>
                     </div>
                     <p className="text-sm text-red-700 bg-red-50/50 border border-red-100 rounded-md px-4 py-2 mb-4">
@@ -894,6 +952,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                           <>
                             <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Recommended</th>
                             <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Uplift</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Priority</th>
                           </>
                         ) : (
                           <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900" colSpan={2}>Actions</th>
@@ -1037,6 +1096,9 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                                 )}
                               </td>
                               <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{upliftVal !== null && upliftVal > 0 ? formatCurrency(upliftVal) : '-'}</td>
+                              <td className="whitespace-nowrap px-3 py-4 text-sm">
+                                {renderPriorityBadge(claim)}
+                              </td>
                             </>
                           ) : (
                             <td className="whitespace-nowrap py-4 px-3 text-center text-sm font-medium space-x-2" colSpan={2}>
@@ -1080,7 +1142,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                         </tr>
                         {isExpanded && (
                           <tr className="bg-gray-50/50">
-                            <td colSpan={11} className="px-6 py-4 text-sm text-gray-700">
+                            <td colSpan={12} className="px-6 py-4 text-sm text-gray-700">
                               <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm max-w-4xl space-y-2">
                                 <h4 className="font-semibold text-gray-900 mb-2 text-xs uppercase tracking-wider text-gray-500">Routing Decision Details</h4>
                                 {getReasonLines(decision?.reason || '').map((line, idx) => {

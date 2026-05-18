@@ -15,6 +15,8 @@ export interface RoutingDecisionData {
   anthem_expected: number | null;
   blueshield_expected: number | null;
   confidence_score: number | null;
+  financial_tier?: string | null;
+  manual_review_code?: string | null;
 }
 
 export interface ClaimWithDecision {

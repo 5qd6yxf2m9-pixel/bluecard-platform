@@ -109,6 +109,8 @@ export async function POST(request: NextRequest) {
           anthem_expected: decisionResult.anthem_expected || null,
           blueshield_expected: decisionResult.blueshield_expected || null,
           confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
+          financial_tier: decisionResult.financial_tier || null,
+          manual_review_code: decisionResult.manual_review_code || null,
         })
 
       if (insertError) {
@@ -254,6 +256,8 @@ export async function POST(request: NextRequest) {
         anthem_expected: decisionResult.anthem_expected || null,
         blueshield_expected: decisionResult.blueshield_expected || null,
         confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
+        financial_tier: decisionResult.financial_tier || null,
+        manual_review_code: decisionResult.manual_review_code || null,
       })
 
       processedClaimIds.push(claim.id)
