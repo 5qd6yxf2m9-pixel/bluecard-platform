@@ -151,6 +151,7 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
 
     const reader = new FileReader()
     reader.onload = async (e) => {
+      let createdBatchId: string | null = null
       try {
         const text = e.target?.result as string
         if (!text) throw new Error()
@@ -218,6 +219,7 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
           .single()
 
         if (batchError || !batch) throw new Error()
+        createdBatchId = batch.id
 
         // Query to check existing patient_id + dos for this client_id
         const patientIds = Array.from(new Set(rows.map(r => r.patient_id)))
@@ -267,7 +269,22 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
         await fetchBatches()
         await fetchCompletedCount()
       } catch {
-        setError('An error occurred during upload or processing. Please check the file format.')
+        if (createdBatchId) {
+          // Delete claims with that batch_id
+          await supabase
+            .from('claims')
+            .delete()
+            .eq('batch_id', createdBatchId)
+
+          // Delete the batch record
+          await supabase
+            .from('batches')
+            .delete()
+            .eq('id', createdBatchId)
+
+          await fetchBatches()
+        }
+        setError('Upload failed and was rolled back. Please try again.')
       } finally {
         setUploading(false)
       }

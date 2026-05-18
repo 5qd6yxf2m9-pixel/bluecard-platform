@@ -18,9 +18,9 @@ interface RoutingDecisionInsert {
 }
 
 export async function POST(request: NextRequest) {
+  const supabase = createClient()
+  let batchIdToRollback: string | null = null
   try {
-    const supabase = createClient()
-
     // 1. Get authenticated session at the very top
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     if (sessionError || !session || !session.user) {
@@ -42,6 +42,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as Record<string, unknown>
     const claim_id = body.claim_id as string
     const batch_id = body.batch_id as string
+
+    if (batch_id) {
+      batchIdToRollback = batch_id
+    }
 
     if (!profile.client_id) {
       return NextResponse.json({ error: 'Profile has no client_id' }, { status: 400 })
@@ -329,6 +333,33 @@ export async function POST(request: NextRequest) {
     })
 
   } catch {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    if (batchIdToRollback) {
+      // 1. Delete all routing decisions for that batch_id
+      await supabase
+        .from('routing_decisions')
+        .delete()
+        .eq('batch_id', batchIdToRollback)
+
+      // 2. Reset all claims for that batch back to status = 'pending'
+      await supabase
+        .from('claims')
+        .update({ status: 'pending' })
+        .eq('batch_id', batchIdToRollback)
+
+      // 3. Reset the batch record itself back to a clean state
+      await supabase
+        .from('batches')
+        .update({
+          status: 'open',
+          approved_count: 0,
+          manual_review_count: 0,
+          total_uplift: 0
+        })
+        .eq('id', batchIdToRollback)
+    }
+
+    return NextResponse.json({ 
+      error: 'Processing failed. All routing decisions have been rolled back and claims reset to pending.' 
+    }, { status: 500 })
   }
 }
