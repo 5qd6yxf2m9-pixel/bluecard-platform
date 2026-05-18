@@ -273,7 +273,7 @@ export function DashboardClient({ userEmail, clientId, batches, role }: Dashboar
           ))}
           {batches.length === 0 && (
             <div className="col-span-full py-12 text-center text-sm text-gray-500 bg-white shadow rounded-lg">
-              No batches found. Click "New Upload" to get started.
+              No batches found. Click &quot;New Upload&quot; to get started.
             </div>
           )}
         </div>
