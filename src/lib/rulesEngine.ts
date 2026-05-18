@@ -1,3 +1,6 @@
+// REMINDER: Run the following SQL migration in Supabase console:
+// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS confidence_score integer;
+
 import { SupabaseClient } from '@supabase/supabase-js'
 
 export interface Claim {
@@ -19,6 +22,7 @@ export interface RoutingDecision {
   uplift_amount?: number;
   anthem_expected?: number;
   blueshield_expected?: number;
+  confidence_score?: number;
 }
 
 export async function processClain(claim: Claim, supabase: SupabaseClient): Promise<RoutingDecision> {
@@ -37,6 +41,9 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
   const anthemExpected = anthemContract ? Number((charge_amount * anthemContract.reimbursement_rate).toFixed(2)) : null
   const blueshieldExpected = bsContract ? Number((charge_amount * bsContract.reimbursement_rate).toFixed(2)) : null
 
+  // Start confidence score at 100
+  let score = 100
+
   // 1. Look up the alpha prefix in alpha_prefix_reference
   const { data: prefixData } = await supabase
     .from('alpha_prefix_reference')
@@ -50,7 +57,8 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
       decision: 'manual_review',
       reason: 'Invalid or inactive alpha prefix',
       anthem_expected: anthemExpected || undefined,
-      blueshield_expected: blueshieldExpected || undefined
+      blueshield_expected: blueshieldExpected || undefined,
+      confidence_score: 0
     }
   }
 
@@ -60,7 +68,8 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
   if (product_type === 'MA' || product_type === 'FEP') {
     return {
       decision: 'manual_review',
-      reason: 'Medicare Advantage or FEP product excluded from BlueCard routing'
+      reason: 'Medicare Advantage or FEP product excluded from BlueCard routing',
+      confidence_score: 0
     }
   }
 
@@ -68,19 +77,33 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
   if (!contracts || contracts.length === 0) {
     return {
       decision: 'manual_review',
-      reason: 'No contracts found for this product type'
+      reason: 'No contracts found for this product type',
+      confidence_score: 0
     }
   }
 
   // 6. If only one plan has a contract, route to that plan
   if (contracts.length === 1) {
+    score -= 20
+    score -= 15 // Only 1 contract means comparison difference is effectively $0 (< $50)
+
+    if (charge_amount < 500) {
+      score -= 10
+    }
+
+    score = Math.max(0, score)
+    const finalDecision = score >= 60 ? 'approved' : 'manual_review'
+    const baseReason = `Only one contracted plan found: ${contracts[0].plan_name}`
+    const finalReason = score >= 60 ? baseReason : `Low confidence (${score}/100) - ${baseReason}`
+
     return {
-      decision: 'approved',
-      reason: `Only one contracted plan found: ${contracts[0].plan_name}`,
+      decision: finalDecision,
+      reason: finalReason,
       recommended_plan: contracts[0].plan_name,
       uplift_amount: 0,
       anthem_expected: anthemExpected || undefined,
-      blueshield_expected: blueshieldExpected || undefined
+      blueshield_expected: blueshieldExpected || undefined,
+      confidence_score: score
     }
   }
 
@@ -95,14 +118,31 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
   // 8. Set uplift_amount as the difference between the two expected reimbursements
   const upliftAmount = bestReimbursement - alternateReimbursement
 
-  // 9. Return approved decision
+  // Calculate deductions
+  if (upliftAmount < 50) {
+    score -= 15
+  } else if (upliftAmount >= 50 && upliftAmount <= 100) {
+    score -= 5
+  }
+
+  if (charge_amount < 500) {
+    score -= 10
+  }
+
+  score = Math.max(0, score)
+  const finalDecision = score >= 60 ? 'approved' : 'manual_review'
+  const baseReason = `Routed to ${bestPlan.plan_name} for highest reimbursement`
+  const finalReason = score >= 60 ? baseReason : `Low confidence (${score}/100) - ${baseReason}`
+
+  // 9. Return approved decision or manual review depending on score
   return {
-    decision: 'approved',
-    reason: `Routed to ${bestPlan.plan_name} for highest reimbursement`,
+    decision: finalDecision,
+    reason: finalReason,
     recommended_plan: bestPlan.plan_name,
     alternate_plan: alternatePlan.plan_name,
     uplift_amount: Number(upliftAmount.toFixed(2)),
     anthem_expected: anthemExpected || undefined,
-    blueshield_expected: blueshieldExpected || undefined
+    blueshield_expected: blueshieldExpected || undefined,
+    confidence_score: score
   }
 }

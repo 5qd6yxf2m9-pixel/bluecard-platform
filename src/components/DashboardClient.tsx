@@ -14,6 +14,7 @@ export interface RoutingDecisionData {
   uplift_amount: number | null;
   anthem_expected: number | null;
   blueshield_expected: number | null;
+  confidence_score: number | null;
 }
 
 export interface ClaimWithDecision {

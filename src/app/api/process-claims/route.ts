@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
           uplift_amount: decisionResult.uplift_amount || null,
           anthem_expected: decisionResult.anthem_expected || null,
           blueshield_expected: decisionResult.blueshield_expected || null,
+          confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
         })
 
         claimIdsToUpdate.push(claim.id)

@@ -40,7 +40,8 @@ export function BatchDetailClient({ batch, tableData, contracts }: BatchDetailCl
         .update({ 
           decision: 'approved', 
           recommended_plan: plan, 
-          reason: overrideReason || 'Manually routed by billing staff' 
+          reason: overrideReason || 'Manually routed by billing staff',
+          confidence_score: 100
         })
         .eq('id', decisionId)
       
@@ -172,6 +173,7 @@ export function BatchDetailClient({ batch, tableData, contracts }: BatchDetailCl
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Recommended</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Uplift</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Decision</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Confidence</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Reason</th>
                 </tr>
               </thead>
@@ -247,6 +249,31 @@ export function BatchDetailClient({ batch, tableData, contracts }: BatchDetailCl
                         ) : (
                           <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/10">
                             {claim.status}
+                          </span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm">
+                        {isMAorFEP ? (
+                          <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                            N/A
+                          </span>
+                        ) : decision?.confidence_score !== null && decision?.confidence_score !== undefined ? (
+                          decision.confidence_score >= 85 ? (
+                            <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
+                              High ({decision.confidence_score})
+                            </span>
+                          ) : decision.confidence_score >= 60 ? (
+                            <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-semibold text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
+                              Medium ({decision.confidence_score})
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
+                              Low ({decision.confidence_score})
+                            </span>
+                          )
+                        ) : (
+                          <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                            N/A
                           </span>
                         )}
                       </td>
