@@ -294,18 +294,20 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
         if (insertError) throw new Error()
 
         // Call Edge Function (fire-and-forget)
-        try {
-          supabase.auth.getSession().then(({ data: { session } }) => {
-            fetch('https://jpnqtxkioymainjxlysm.supabase.co/functions/v1/process-batch', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session?.access_token}`
-              },
-              body: JSON.stringify({ batch_id: batch.id, client_id: clientId })
-            }).catch(() => {})
+        const session = await supabase.auth.getSession()
+        const accessToken = session.data.session?.access_token
+
+        if (batch.id && clientId) {
+          console.log('Triggering process-batch Edge Function:', { batch_id: batch.id, client_id: clientId })
+          fetch('https://jpnqtxkioymainjxlysm.supabase.co/functions/v1/process-batch', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({ batch_id: batch.id, client_id: clientId })
           }).catch(() => {})
-        } catch { }
+        }
 
         setShowUpload(false)
         await fetchBatches()
