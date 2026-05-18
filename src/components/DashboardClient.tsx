@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -79,6 +79,8 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  const edgeFunctionCallsRef = useRef<Record<string, number>>({})
 
   const handleStartRename = (batchId: string, currentName: string) => {
     setEditingBatchId(batchId)
@@ -171,7 +173,30 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
                 const updatedBatch = data as unknown as BatchData
                 if (updatedBatch.status !== 'processing' || updatedBatch.processing_error) {
                   hasChanges = true
+                  return updatedBatch
                 }
+
+                // If still processing, call the Edge Function again if count < 30 and no processing_error
+                const currentCount = edgeFunctionCallsRef.current[batch.id] || 1
+                if (currentCount < 30 && !updatedBatch.processing_error) {
+                  edgeFunctionCallsRef.current[batch.id] = currentCount + 1
+                  console.log(`Triggering process-batch Edge Function (Attempt ${currentCount + 1}):`, { batch_id: batch.id, client_id: clientId })
+                  
+                  const session = await supabase.auth.getSession()
+                  const accessToken = session.data.session?.access_token
+                  
+                  fetch('https://jpnqtxkioymainjxlysm.supabase.co/functions/v1/process-batch', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ batch_id: batch.id, client_id: clientId })
+                  }).catch(() => {})
+                } else if (currentCount >= 30) {
+                  console.warn(`Reached max retry count of 30 for batch: ${batch.id}`)
+                }
+
                 return updatedBatch
               }
             } catch {
@@ -189,7 +214,7 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
     }, 3000)
 
     return () => clearInterval(interval)
-  }, [batchesList, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [batchesList, supabase, clientId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -301,7 +326,8 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
         const accessToken = session.data.session?.access_token
 
         if (batch.id && clientId) {
-          console.log('Triggering process-batch Edge Function:', { batch_id: batch.id, client_id: clientId })
+          edgeFunctionCallsRef.current[batch.id] = 1
+          console.log('Triggering process-batch Edge Function (Attempt 1):', { batch_id: batch.id, client_id: clientId })
           fetch('https://jpnqtxkioymainjxlysm.supabase.co/functions/v1/process-batch', {
             method: 'POST',
             headers: {
