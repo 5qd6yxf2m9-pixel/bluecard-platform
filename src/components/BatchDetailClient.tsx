@@ -41,7 +41,7 @@ export function BatchDetailClient({ batch, tableData, contracts }: BatchDetailCl
           decision: 'approved', 
           recommended_plan: plan, 
           reason: overrideReason || 'Manually routed by billing staff',
-          confidence_score: 100
+          confidence_score: null
         })
         .eq('id', decisionId)
       
@@ -281,7 +281,14 @@ export function BatchDetailClient({ batch, tableData, contracts }: BatchDetailCl
                         )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">
-                        {isMAorFEP ? (
+                        {decision?.decision === 'approved' && (
+                          decision.reason === 'Manually routed by billing staff' || 
+                          decision.reason === 'MA/FEP claim billed separately outside BlueCard routing'
+                        ) ? (
+                          <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                            Reviewed
+                          </span>
+                        ) : isMAorFEP ? (
                           <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
                             N/A
                           </span>
