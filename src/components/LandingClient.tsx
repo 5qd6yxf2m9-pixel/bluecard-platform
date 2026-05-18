@@ -262,7 +262,7 @@ export function LandingClient() {
                 <span className="text-electric font-bold">2,744</span> prefixes validated
               </div>
               <div className="animate-in fade-in duration-700 delay-[700ms] fill-mode-both px-4 py-2 bg-white rounded-full border border-gray-200 text-sm font-medium text-gray-700 shadow-sm">
-                <span className="text-electric font-bold">4</span> approved in seconds
+                <span className="text-electric font-bold">100%</span> prebill analysis
               </div>
             </div>
           </div>
