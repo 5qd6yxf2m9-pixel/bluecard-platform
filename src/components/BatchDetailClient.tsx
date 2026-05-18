@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { ClaimWithDecision, PlanContract, BatchData } from '@/components/DashboardClient'
@@ -22,6 +22,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
   const [loading, setLoading] = useState(true)
   const [claims, setClaims] = useState<ClaimWithDecision[]>([])
   const [totalCount, setTotalCount] = useState(0)
+  const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null)
   
   const [stats, setStats] = useState({
     totalClaims: batch.total_claims || 0,
@@ -38,9 +39,16 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
     const handler = setTimeout(() => {
       setSearch(searchInput)
       setPage(1)
+      setExpandedClaimId(null)
     }, 300)
     return () => clearTimeout(handler)
   }, [searchInput])
+
+  // Reset page and expanded row when tab changes
+  useEffect(() => {
+    setPage(1)
+    setExpandedClaimId(null)
+  }, [tab])
 
   // 2. Fetch Stats using exact counts (Never fetch all rows)
   const fetchStats = async () => {
@@ -148,6 +156,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
       // Refresh only the active tab's claims data and global stats count!
       await fetchClaims()
       await fetchStats()
+      setExpandedClaimId(null)
     } catch {
       alert('Failed to update routing decision.')
     }
@@ -169,7 +178,6 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
 
   const exportResults = async () => {
     try {
-      // Export all approved claims for this batch (chunked or select for export)
       const { data } = await supabase
         .from('claims')
         .select(`
@@ -209,6 +217,89 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
   }
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val)
+
+  const toggleExpand = (claimId: string) => {
+    setExpandedClaimId(expandedClaimId === claimId ? null : claimId)
+  }
+
+  const renderStatusBadge = (claim: ClaimWithDecision) => {
+    const decision = claim.routing_decisions?.[0]
+    if (!decision) {
+      return (
+        <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
+          {claim.status}
+        </span>
+      )
+    }
+
+    const isMAorFEP = claim.product_type === 'MA' || claim.product_type === 'FEP' || decision.reason.includes('Medicare Advantage') || decision.reason.includes('FEP');
+
+    const isReviewed = decision.decision === 'approved' && (
+      decision.reason === 'Manually routed by billing staff' || 
+      decision.reason === 'MA/FEP claim billed separately outside BlueCard routing'
+    );
+
+    if (isReviewed) {
+      return (
+        <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700 ring-1 ring-inset ring-gray-500/20">
+          Reviewed
+        </span>
+      )
+    }
+
+    if (isMAorFEP) {
+      return (
+        <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-500/10">
+          N/A
+        </span>
+      )
+    }
+
+    if (decision.decision === 'approved') {
+      const score = decision.confidence_score
+      if (score !== null && score !== undefined) {
+        if (score >= 85) {
+          return (
+            <span className="inline-flex items-center rounded-md bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
+              Approved · High ({score})
+            </span>
+          )
+        } else if (score >= 60) {
+          return (
+            <span className="inline-flex items-center rounded-md bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
+              Approved · Medium ({score})
+            </span>
+          )
+        } else {
+          return (
+            <span className="inline-flex items-center rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
+              Approved · Low ({score})
+            </span>
+          )
+        }
+      }
+      return (
+        <span className="inline-flex items-center rounded-md bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
+          Approved
+        </span>
+      )
+    }
+
+    if (decision.decision === 'manual_review') {
+      const score = decision.confidence_score ?? 0
+      return (
+        <span className="inline-flex items-center rounded-md bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 ring-1 ring-inset ring-orange-600/20">
+          Manual Review · Low ({score})
+        </span>
+      )
+    }
+
+    return (
+      <span className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
+        {decision.decision}
+      </span>
+    )
+  }
 
   const totalPages = Math.ceil(totalCount / itemsPerPage)
 
@@ -268,7 +359,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
             <button
-              onClick={() => { setTab('routing_decisions'); setPage(1); }}
+              onClick={() => { setTab('routing_decisions'); }}
               className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold ${
                 tab === 'routing_decisions'
                   ? 'border-indigo-600 text-indigo-600'
@@ -278,7 +369,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
               Routing Decisions
             </button>
             <button
-              onClick={() => { setTab('manual_review'); setPage(1); }}
+              onClick={() => { setTab('manual_review'); }}
               className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold flex items-center space-x-2 ${
                 tab === 'manual_review'
                   ? 'border-indigo-600 text-indigo-600'
@@ -340,9 +431,10 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                     ) : (
                       <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900" colSpan={2}>Actions</th>
                     )}
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Decision</th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Confidence</th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Reason</th>
+                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                    <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                      <span className="sr-only">Details</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
@@ -387,134 +479,111 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                       upliftVal = Math.abs(anthemExpectedVal - bsExpectedVal);
                     }
 
-                    const isReviewed = decision?.decision === 'approved' && (
-                      decision.reason === 'Manually routed by billing staff' || 
-                      decision.reason === 'MA/FEP claim billed separately outside BlueCard routing'
-                    );
+                    const isExpanded = expandedClaimId === claim.id
 
                     return (
-                      <tr key={claim.id}>
-                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
-                        {(() => {
-                          let formattedDos = '-';
-                          let dosClass = 'text-gray-500';
-                          if (claim.dos) {
-                            const parts = claim.dos.split('-');
-                            if (parts.length === 3) {
-                              formattedDos = `${parts[1]}/${parts[2]}/${parts[0]}`;
-                            } else {
-                              formattedDos = claim.dos;
-                            }
+                      <Fragment key={claim.id}>
+                        <tr className={isExpanded ? 'bg-indigo-50/20' : undefined}>
+                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
+                          {(() => {
+                            let formattedDos = '-';
+                            let dosClass = 'text-gray-500';
+                            if (claim.dos) {
+                              const parts = claim.dos.split('-');
+                              if (parts.length === 3) {
+                                formattedDos = `${parts[1]}/${parts[2]}/${parts[0]}`;
+                              } else {
+                                formattedDos = claim.dos;
+                              }
 
-                            const parsedDos = new Date(claim.dos);
-                            if (!isNaN(parsedDos.getTime())) {
-                              const today = new Date();
-                              const msPerDay = 24 * 60 * 60 * 1000;
-                              const diffDays = (today.getTime() - parsedDos.getTime()) / msPerDay;
-                              if (diffDays > 365) {
-                                dosClass = 'text-yellow-600 font-semibold';
+                              const parsedDos = new Date(claim.dos);
+                              if (!isNaN(parsedDos.getTime())) {
+                                const today = new Date();
+                                const msPerDay = 24 * 60 * 60 * 1000;
+                                const diffDays = (today.getTime() - parsedDos.getTime()) / msPerDay;
+                                if (diffDays > 365) {
+                                  dosClass = 'text-yellow-600 font-semibold';
+                                }
                               }
                             }
-                          }
-                          return (
-                            <td className={`whitespace-nowrap px-3 py-4 text-sm ${dosClass}`}>
-                              {formattedDos}
-                            </td>
-                          );
-                        })()}
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
-                        <td className={`whitespace-nowrap px-3 py-4 text-sm ${anthemClass}`}>{anthemExpectedVal !== null ? formatCurrency(anthemExpectedVal) : '-'}</td>
-                        <td className={`whitespace-nowrap px-3 py-4 text-sm ${bsClass}`}>{bsExpectedVal !== null ? formatCurrency(bsExpectedVal) : '-'}</td>
-                        
-                        {tab === 'routing_decisions' ? (
-                          <>
-                            <td className="whitespace-nowrap px-3 py-4 text-sm">
-                              {decision?.recommended_plan && decision.recommended_plan !== '-' ? (
-                                <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
-                                  {decision.recommended_plan}
-                                </span>
+                            return (
+                              <td className={`whitespace-nowrap px-3 py-4 text-sm ${dosClass}`}>
+                                {formattedDos}
+                              </td>
+                            );
+                          })()}
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
+                          <td className={`whitespace-nowrap px-3 py-4 text-sm ${anthemClass}`}>{anthemExpectedVal !== null ? formatCurrency(anthemExpectedVal) : '-'}</td>
+                          <td className={`whitespace-nowrap px-3 py-4 text-sm ${bsClass}`}>{bsExpectedVal !== null ? formatCurrency(bsExpectedVal) : '-'}</td>
+                          
+                          {tab === 'routing_decisions' ? (
+                            <>
+                              <td className="whitespace-nowrap px-3 py-4 text-sm">
+                                {decision?.recommended_plan && decision.recommended_plan !== '-' ? (
+                                  <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
+                                    {decision.recommended_plan}
+                                  </span>
+                                ) : (
+                                  '-'
+                                )}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{upliftVal !== null && upliftVal > 0 ? formatCurrency(upliftVal) : '-'}</td>
+                            </>
+                          ) : (
+                            <td className="whitespace-nowrap py-4 px-3 text-center text-sm font-medium space-x-2" colSpan={2}>
+                              {isMAorFEP ? (
+                                <button
+                                  onClick={() => handleManualRoute(decision.id, '-', 'MA/FEP claim billed separately outside BlueCard routing')}
+                                  className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-100 ring-1 ring-inset ring-gray-300"
+                                >
+                                  Mark as Billed Separately
+                                </button>
                               ) : (
-                                '-'
+                                <>
+                                  <button
+                                    onClick={() => handleManualRoute(decision.id, 'Anthem')}
+                                    className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-100"
+                                  >
+                                    Route to Anthem {anthemExpectedVal !== null ? `(${formatCurrency(anthemExpectedVal)})` : ''}
+                                  </button>
+                                  <button
+                                    onClick={() => handleManualRoute(decision.id, 'Blue Shield')}
+                                    className="inline-flex items-center rounded-md bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
+                                  >
+                                    Route to Blue Shield {bsExpectedVal !== null ? `(${formatCurrency(bsExpectedVal)})` : ''}
+                                  </button>
+                                </>
                               )}
                             </td>
-                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{upliftVal !== null && upliftVal > 0 ? formatCurrency(upliftVal) : '-'}</td>
-                          </>
-                        ) : (
-                          <td className="whitespace-nowrap py-4 px-3 text-center text-sm font-medium space-x-2" colSpan={2}>
-                            {isMAorFEP ? (
-                              <button
-                                onClick={() => handleManualRoute(decision.id, '-', 'MA/FEP claim billed separately outside BlueCard routing')}
-                                className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-100 ring-1 ring-inset ring-gray-300"
-                              >
-                                Mark as Billed Separately
-                              </button>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleManualRoute(decision.id, 'Anthem')}
-                                  className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-100"
-                                >
-                                  Route to Anthem {anthemExpectedVal !== null ? `(${formatCurrency(anthemExpectedVal)})` : ''}
-                                </button>
-                                <button
-                                  onClick={() => handleManualRoute(decision.id, 'Blue Shield')}
-                                  className="inline-flex items-center rounded-md bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
-                                >
-                                  Route to Blue Shield {bsExpectedVal !== null ? `(${formatCurrency(bsExpectedVal)})` : ''}
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        )}
+                          )}
 
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                          {decision ? (
-                            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-                              decision.decision === 'approved' 
-                                ? 'bg-green-50 text-green-700 ring-green-600/20' 
-                                : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
-                            }`}>
-                              {decision.decision}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/10">
-                              {claim.status}
-                            </span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm">
-                          {isReviewed ? (
-                            <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
-                              Reviewed
-                            </span>
-                          ) : isMAorFEP ? (
-                            <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
-                              N/A
-                            </span>
-                          ) : decision?.confidence_score !== null && decision?.confidence_score !== undefined ? (
-                            decision.confidence_score >= 85 ? (
-                              <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
-                                High ({decision.confidence_score})
-                              </span>
-                            ) : decision.confidence_score >= 60 ? (
-                              <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-semibold text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
-                                Medium ({decision.confidence_score})
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
-                                Low ({decision.confidence_score})
-                              </span>
-                            )
-                          ) : (
-                            <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
-                              N/A
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-4 text-sm text-gray-500 whitespace-normal">{decision?.reason || '-'}</td>
-                      </tr>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm">
+                            {renderStatusBadge(claim)}
+                          </td>
+                          <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                            <button
+                              onClick={() => toggleExpand(claim.id)}
+                              className="inline-flex items-center justify-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                            >
+                              {isExpanded ? 'Hide' : 'Details'}
+                            </button>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="bg-gray-50/50">
+                            <td colSpan={11} className="px-6 py-4 text-sm text-gray-700">
+                              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm max-w-4xl">
+                                <h4 className="font-semibold text-gray-900 mb-1.5 text-xs uppercase tracking-wider text-gray-500">Routing Decision Reason</h4>
+                                <p className="text-gray-700 whitespace-normal leading-relaxed text-sm font-medium">
+                                  {decision?.reason || 'No detailed reason provided.'}
+                                </p>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     )
                   })}
                 </tbody>
