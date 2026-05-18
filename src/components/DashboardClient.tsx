@@ -32,15 +32,24 @@ export interface DashboardStats {
   totalUplift: number;
 }
 
+export interface PlanContract {
+  id?: string;
+  client_id: string;
+  plan_name: string;
+  product_type: string;
+  reimbursement_rate: number;
+}
+
 interface DashboardClientProps {
   userEmail: string;
   clientId: string;
   stats: DashboardStats;
   tableData: ClaimWithDecision[];
   role?: string;
+  contracts?: PlanContract[];
 }
 
-export function DashboardClient({ userEmail, clientId, stats, tableData, role }: DashboardClientProps) {
+export function DashboardClient({ userEmail, clientId, stats, tableData, role, contracts = [] }: DashboardClientProps) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -48,14 +57,14 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role }:
 
   const manualReviewClaims = tableData.filter(claim => claim.routing_decisions?.[0]?.decision === 'manual_review')
 
-  const handleManualRoute = async (decisionId: string, plan: string) => {
+  const handleManualRoute = async (decisionId: string, plan: string, overrideReason?: string) => {
     try {
       const { error: updateError } = await supabase
         .from('routing_decisions')
         .update({ 
           decision: 'approved', 
           recommended_plan: plan, 
-          reason: 'Manually routed by billing staff' 
+          reason: overrideReason || 'Manually routed by billing staff' 
         })
         .eq('id', decisionId)
       
@@ -353,26 +362,54 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role }:
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {manualReviewClaims.map((claim) => {
                       const decision = claim.routing_decisions[0]
+                      const isPrefixIssue = decision.reason.toLowerCase().includes('prefix')
+                      const isMAorFEP = decision.reason.includes('Medicare Advantage') || decision.reason.includes('FEP')
+                      
+                      let anthemExpected = null
+                      let blueShieldExpected = null
+
+                      if (isPrefixIssue) {
+                        const anthemContract = contracts.find(c => c.product_type === claim.product_type && c.plan_name === 'Anthem')
+                        const bsContract = contracts.find(c => c.product_type === claim.product_type && c.plan_name === 'Blue Shield')
+                        if (anthemContract) anthemExpected = claim.charge_amount * anthemContract.reimbursement_rate
+                        if (bsContract) blueShieldExpected = claim.charge_amount * bsContract.reimbursement_rate
+                      }
+
                       return (
                         <tr key={claim.id}>
                           <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
-                          <td className="px-3 py-4 text-sm text-gray-500 whitespace-normal">{decision.reason}</td>
+                          <td className="px-3 py-4 text-sm text-gray-500 whitespace-normal">
+                            {decision.reason}
+                            {isPrefixIssue && <p className="mt-1 text-xs text-red-600 font-medium">Note: Prefix not recognized. Verify member eligibility and select the correct local plan.</p>}
+                            {isMAorFEP && <p className="mt-1 text-xs text-yellow-600 font-medium">Note: Medicare Advantage or FEP products are billed outside standard BlueCard routing.</p>}
+                          </td>
                           <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
-                            <button
-                              onClick={() => handleManualRoute(decision.id, 'Anthem')}
-                              className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1.5 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-100"
-                            >
-                              Route to Anthem
-                            </button>
-                            <button
-                              onClick={() => handleManualRoute(decision.id, 'Blue Shield')}
-                              className="inline-flex items-center rounded-md bg-indigo-50 px-2.5 py-1.5 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
-                            >
-                              Route to Blue Shield
-                            </button>
+                            {isMAorFEP ? (
+                              <button
+                                onClick={() => handleManualRoute(decision.id, '-', 'MA/FEP claim billed separately outside BlueCard routing')}
+                                className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-100 ring-1 ring-inset ring-gray-300"
+                              >
+                                Mark as Billed Separately
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleManualRoute(decision.id, 'Anthem')}
+                                  className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1.5 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-100"
+                                >
+                                  Route to Anthem {anthemExpected !== null ? `(${formatCurrency(anthemExpected)} expected)` : ''}
+                                </button>
+                                <button
+                                  onClick={() => handleManualRoute(decision.id, 'Blue Shield')}
+                                  className="inline-flex items-center rounded-md bg-indigo-50 px-2.5 py-1.5 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
+                                >
+                                  Route to Blue Shield {blueShieldExpected !== null ? `(${formatCurrency(blueShieldExpected)} expected)` : ''}
+                                </button>
+                              </>
+                            )}
                           </td>
                         </tr>
                       )

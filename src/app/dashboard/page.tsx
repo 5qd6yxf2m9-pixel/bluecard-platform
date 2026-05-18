@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { DashboardClient, ClaimWithDecision, DashboardStats } from '@/components/DashboardClient'
+import { DashboardClient, ClaimWithDecision, DashboardStats, PlanContract } from '@/components/DashboardClient'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -30,6 +30,14 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
 
   const tableData = (claimsData || []) as unknown as ClaimWithDecision[]
+
+  // Fetch plan contracts for the client
+  const { data: contractsData } = await supabase
+    .from('plan_contracts')
+    .select('*')
+    .eq('client_id', profile.client_id)
+
+  const contracts = (contractsData || []) as unknown as PlanContract[]
 
   // Calculate Stats
   const stats: DashboardStats = {
@@ -61,6 +69,7 @@ export default async function DashboardPage() {
       stats={stats}
       tableData={tableData}
       role={profile.role}
+      contracts={contracts}
     />
   )
 }
