@@ -344,15 +344,20 @@ export async function POST(request: NextRequest) {
     }
 
     console.error('STEP 5: updating claim statuses')
-    if (processedClaimIds.length > 0) {
-      const { error: updateError } = await supabase
-        .from('claims')
-        .update({ status: 'processed' })
-        .in('id', processedClaimIds)
-
-      if (updateError) {
-        console.error('[Error Step: status update] Failed to update claims status:', updateError.message)
-        throw new Error(`Failed to update claims status: ${updateError.message}`)
+    const validIds = processedClaimIds.filter(id => id && typeof id === 'string' && id.length > 0)
+    if (validIds.length > 0) {
+      const chunkSize = 100
+      for (let i = 0; i < validIds.length; i += chunkSize) {
+        const chunk = validIds.slice(i, i + chunkSize)
+        if (chunk.length === 0) continue
+        const { error: updateError } = await supabase
+          .from('claims')
+          .update({ status: 'processed' })
+          .in('id', chunk)
+        if (updateError) {
+          console.error('[Error Step: status update] Failed to update claims status chunk:', updateError.message)
+          throw new Error('Failed to update claims status chunk: ' + updateError.message)
+        }
       }
     }
 
