@@ -47,11 +47,11 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
   }
   
   const [stats, setStats] = useState({
-    totalClaims: batch.total_claims || 0,
-    approved: batch.approved_count || 0,
-    manualReview: batch.manual_review_count || 0,
+    totalClaims: 0,
+    approved: 0,
+    manualReview: 0,
     duplicates: 0,
-    totalUplift: batch.total_uplift || 0
+    totalUplift: 0
   })
 
   const supabase = createClient()
@@ -168,15 +168,11 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
     }
   }
 
-  // Trigger claim fetching when dependencies change
+  // Trigger claim fetching and stats syncing when dependencies change
   useEffect(() => {
-    fetchClaims()
-  }, [tab, page, search])
-
-  // Sync Stats periodically or on initialization
-  useEffect(() => {
-    fetchStats()
-  }, [])
+    void fetchClaims()
+    void fetchStats()
+  }, [tab, page, search]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleManualRoute = async (decisionId: string, plan: string, overrideReason?: string) => {
     try {
@@ -390,65 +386,81 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white shadow">
+      <header className="bg-[#0a1628] shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Link href="/dashboard" className="text-gray-500 hover:text-gray-900">
-              &larr; Back
-            </Link>
-            {editingName ? (
-              <div className="flex items-center space-x-1">
-                <input
-                  type="text"
-                  value={batchName}
-                  onChange={(e) => setBatchName(e.target.value)}
-                  className="px-2 py-1 border border-gray-300 rounded text-sm font-bold text-gray-900 bg-white"
-                  autoFocus
-                />
-                <button
-                  onClick={handleSaveBatchName}
-                  className="text-green-600 hover:text-green-800 p-1 flex-shrink-0"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
-                <button
-                  onClick={handleCancelRename}
-                  className="text-red-600 hover:text-red-800 p-1 flex-shrink-0"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-2">
-                <h1 className="text-xl font-bold text-gray-900">{batchName}</h1>
-                <button
-                  onClick={() => setEditingName(true)}
-                  className="text-gray-400 hover:text-[#2563eb] p-1 transition-colors flex-shrink-0"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                </button>
-              </div>
-            )}
-            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-              batch.status === 'completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
-              batch.status === 'open' ? 'bg-blue-50 text-blue-700 ring-blue-600/20' :
-              'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
-            }`}>
-              {batch.status}
-            </span>
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-3">
+              <Link href="/dashboard" className="text-white hover:text-gray-300 flex items-center space-x-2 text-sm font-semibold transition-colors">
+                <span>&larr;</span> <span>Back</span>
+              </Link>
+              <span className="text-gray-600">|</span>
+              <span className="text-xl font-bold text-white font-display">
+                BlueCard Platform
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              {editingName ? (
+                <div className="flex items-center space-x-1">
+                  <input
+                    type="text"
+                    value={batchName}
+                    onChange={(e) => setBatchName(e.target.value)}
+                    className="px-2 py-1 border border-gray-600 rounded text-sm font-bold text-white bg-slate-800"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveBatchName}
+                    className="text-green-400 hover:text-green-300 p-1 flex-shrink-0"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={handleCancelRename}
+                    className="text-red-400 hover:text-red-300 p-1 flex-shrink-0"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <h1 className="text-xl font-bold text-white font-display">{batchName}</h1>
+                  <button
+                    onClick={() => setEditingName(true)}
+                    className="text-gray-400 hover:text-white p-1 transition-colors flex-shrink-0"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset ${
+                batch.status === 'completed' 
+                  ? 'bg-green-500/10 text-green-400 ring-green-500/20' 
+                  : 'bg-blue-500/10 text-blue-400 ring-blue-500/20'
+              }`}>
+                {batch.status}
+              </span>
+            </div>
           </div>
-          <div className="space-x-3">
-            <button onClick={exportResults} className="text-sm font-medium text-gray-700 hover:text-gray-900 px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
+
+          <div className="flex items-center space-x-3">
+            <button 
+              onClick={exportResults} 
+              className="text-sm text-white font-semibold border border-white/20 hover:bg-white/10 px-3 py-1.5 rounded-md transition-colors"
+            >
               Export Results
             </button>
             {batch.status !== 'completed' && (
-              <button onClick={markComplete} className="text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-2 border border-transparent rounded-md shadow-sm">
+              <button 
+                onClick={markComplete} 
+                className="text-sm text-white font-semibold bg-[#2563eb] hover:bg-blue-700 px-3 py-1.5 rounded-md transition-colors shadow-sm"
+              >
                 Mark Batch Complete
               </button>
             )}
