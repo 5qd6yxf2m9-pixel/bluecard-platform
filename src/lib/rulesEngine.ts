@@ -1,5 +1,6 @@
-// REMINDER: Run the following SQL migration in Supabase console:
+// REMINDER: Run the following SQL migrations in Supabase console:
 // ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS confidence_score integer;
+// ALTER TABLE alpha_prefix_reference ADD COLUMN IF NOT EXISTS validated_date date;
 
 import { SupabaseClient } from '@supabase/supabase-js'
 
@@ -62,6 +63,31 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
     }
   }
 
+  // DOS Validation Step
+  const claimDate = new Date(claim.dos)
+  const today = new Date()
+
+  // If DOS is in the future
+  if (claimDate > today) {
+    return {
+      decision: 'manual_review',
+      reason: 'Invalid date of service - future date detected',
+      anthem_expected: anthemExpected || undefined,
+      blueshield_expected: blueshieldExpected || undefined,
+      confidence_score: 0
+    }
+  }
+
+  const msPerDay = 24 * 60 * 60 * 1000
+  const diffDays = (today.getTime() - claimDate.getTime()) / msPerDay
+  let ageWarning = ''
+
+  // If DOS is more than 365 days before today
+  if (diffDays > 365) {
+    score -= 10
+    ageWarning = 'Warning: Date of service is over 1 year old - prefix may have changed'
+  }
+
   // 2. If found and is a BlueCard Program prefix, the claim is valid and eligible for routing comparison
 
   // 3. Check if product_type is 'MA' or 'FEP'
@@ -94,7 +120,17 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
     score = Math.max(0, score)
     const finalDecision = score >= 60 ? 'approved' : 'manual_review'
     const baseReason = `Only one contracted plan found: ${contracts[0].plan_name}`
-    const finalReason = score >= 60 ? baseReason : `Low confidence (${score}/100) - ${baseReason}`
+    
+    let finalReason = baseReason
+    if (ageWarning) {
+      finalReason = `${finalReason}. ${ageWarning}`
+    }
+
+    if (score < 60) {
+      finalReason = `Low confidence (${score}/100) - ${finalReason}`
+    } else if (score >= 60 && score <= 84) {
+      finalReason = `${finalReason} - Medium confidence, verify before billing`
+    }
 
     return {
       decision: finalDecision,
@@ -132,7 +168,17 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
   score = Math.max(0, score)
   const finalDecision = score >= 60 ? 'approved' : 'manual_review'
   const baseReason = `Routed to ${bestPlan.plan_name} for highest reimbursement`
-  const finalReason = score >= 60 ? baseReason : `Low confidence (${score}/100) - ${baseReason}`
+  
+  let finalReason = baseReason
+  if (ageWarning) {
+    finalReason = `${finalReason}. ${ageWarning}`
+  }
+
+  if (score < 60) {
+    finalReason = `Low confidence (${score}/100) - ${finalReason}`
+  } else if (score >= 60 && score <= 84) {
+    finalReason = `${finalReason} - Medium confidence, verify before billing`
+  }
 
   // 9. Return approved decision or manual review depending on score
   return {
