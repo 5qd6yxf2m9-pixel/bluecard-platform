@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile has no client_id' }, { status: 400 })
     }
 
+    console.error('STEP 1: fetching prefixes')
     // STEP 1 - Bulk fetch all needed data upfront before processing any claims
     // Fetch all active prefixes with retry logic (up to 3 attempts total)
     let activePrefixes: Record<string, unknown>[] | null = null
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    console.error('STEP 2: fetching contracts')
     // Fetch all client contracts
     const { data: clientContracts, error: contractError } = await supabase
       .from('plan_contracts')
@@ -296,6 +298,7 @@ export async function POST(request: NextRequest) {
     const decisionsToInsert: RoutingDecisionInsert[] = []
     const processedClaimIds: string[] = []
 
+    console.error('STEP 3: processing claims')
     // STEP 4 - Bulk process all claims in memory after the initial bulk fetches
     for (const claim of pendingClaims) {
       const decisionResult = await processClain(claim, supabase, prefixMap, contractMap)
@@ -327,6 +330,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.error('STEP 4: bulk insert decisions')
     // STEP 3 - Bulk insert routing decisions & bulk update claim statuses
     if (decisionsToInsert.length > 0) {
       const { error: insertError } = await supabase
@@ -339,6 +343,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.error('STEP 5: updating claim statuses')
     if (processedClaimIds.length > 0) {
       const { error: updateError } = await supabase
         .from('claims')
@@ -370,8 +375,11 @@ export async function POST(request: NextRequest) {
       total: rawClaims.length
     })
 
-  } catch {
-    console.error('[Error Step: processing pipeline] Processing failed. Rolling back all routing decisions...')
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    const errorStack = err instanceof Error ? err.stack : 'no stack'
+
+    console.error('[Error Step: processing pipeline] Processing failed. Rolling back all routing decisions...', errorMessage)
     if (batchIdToRollback) {
       // 1. Delete all routing decisions for that batch_id
       await supabase
@@ -398,7 +406,9 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ 
-      error: 'Processing failed. All routing decisions have been rolled back and claims reset to pending.' 
+      error: errorMessage,
+      stack: errorStack,
+      step: 'check vercel logs for step details'
     }, { status: 500 })
   }
 }
