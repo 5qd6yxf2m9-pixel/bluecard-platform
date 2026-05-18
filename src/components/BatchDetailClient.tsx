@@ -130,7 +130,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
       if (tab === 'duplicates') {
         let query = supabase
           .from('claims')
-          .select('*', { count: 'exact' })
+          .select('id, patient_id, alpha_prefix, dos, charge_amount, status', { count: 'exact' })
           .eq('batch_id', batch.id)
           .eq('status', 'duplicate')
 
