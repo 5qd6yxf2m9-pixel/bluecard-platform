@@ -127,43 +127,84 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
       const end = start + itemsPerPage - 1
 
       // Search filters
-      let query;
       if (tab === 'duplicates') {
-        query = supabase
+        let query = supabase
           .from('claims')
           .select('*', { count: 'exact' })
           .eq('batch_id', batch.id)
           .eq('status', 'duplicate')
-      } else {
-        query = supabase
-          .from('claims')
-          .select(`
-            *,
-            routing_decisions!inner(*)
-          `, { count: 'exact' })
-          .eq('batch_id', batch.id)
 
-        if (tab === 'routing_decisions') {
-          query = query.eq('routing_decisions.decision', 'approved')
-        } else {
-          query = query.eq('routing_decisions.decision', 'manual_review')
+        if (search) {
+          query = query.or(`patient_id.ilike.%${search}%,alpha_prefix.ilike.%${search}%`)
         }
+
+        query = query
+          .order('created_at', { ascending: false })
+          .range(start, end)
+
+        const { data, count, error } = await query
+
+        if (error) throw error
+
+        const mappedClaims = (data || []).map(claim => ({
+          ...claim,
+          routing_decisions: []
+        }))
+        setClaims(mappedClaims as unknown as ClaimWithDecision[])
+        setTotalCount(count || 0)
+      } else {
+        const targetDecision = tab === 'routing_decisions' ? 'approved' : 'manual_review'
+        
+        let decisionQuery = supabase
+          .from('routing_decisions')
+          .select('*', { count: 'exact' })
+          .eq('batch_id', batch.id)
+          .eq('decision', targetDecision)
+
+        decisionQuery = decisionQuery
+          .order('created_at', { ascending: false })
+          .range(start, end)
+
+        const { data: decisions, count: decisionCount, error: decisionError } = await decisionQuery
+
+        if (decisionError) throw decisionError
+
+        if (!decisions || decisions.length === 0) {
+          setClaims([])
+          setTotalCount(0)
+          return
+        }
+
+        const claimIds = decisions.map(d => d.claim_id)
+        
+        let claimsQuery = supabase
+          .from('claims')
+          .select('*')
+          .in('id', claimIds)
+
+        if (search) {
+          claimsQuery = claimsQuery.or(`patient_id.ilike.%${search}%,alpha_prefix.ilike.%${search}%`)
+        }
+
+        const { data: claimsData, error: claimsError } = await claimsQuery
+
+        if (claimsError) throw claimsError
+
+        const mappedClaims = (claimsData || []).map(claim => {
+          const matchedDecision = decisions.find(d => d.claim_id === claim.id)
+          return {
+            ...claim,
+            routing_decisions: matchedDecision ? [matchedDecision] : []
+          }
+        })
+
+        const sortedClaims = decisions
+          .map(d => mappedClaims.find(c => c.id === d.claim_id))
+          .filter(Boolean) as ClaimWithDecision[]
+
+        setClaims(sortedClaims)
+        setTotalCount(decisionCount || 0)
       }
-
-      if (search) {
-        query = query.or(`patient_id.ilike.%${search}%,alpha_prefix.ilike.%${search}%`)
-      }
-
-      query = query
-        .order('created_at', { ascending: false })
-        .range(start, end)
-
-      const { data, count, error } = await query
-
-      if (error) throw error
-
-      setClaims((data || []) as unknown as ClaimWithDecision[])
-      setTotalCount(count || 0)
     } catch { }
     finally {
       setLoading(false)
@@ -256,16 +297,35 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
 
   const exportResults = async () => {
     try {
-      const { data } = await supabase
-        .from('claims')
-        .select(`
-          *,
-          routing_decisions!inner(*)
-        `)
+      const { data: decisions, error: decisionError } = await supabase
+        .from('routing_decisions')
+        .select('*')
         .eq('batch_id', batch.id)
-        .eq('routing_decisions.decision', 'approved')
+        .eq('decision', 'approved')
 
-      const exportData = (data || []) as unknown as ClaimWithDecision[]
+      if (decisionError) throw decisionError
+
+      if (!decisions || decisions.length === 0) {
+        alert('No approved claims to export.')
+        return
+      }
+
+      const claimIds = decisions.map(d => d.claim_id)
+
+      const { data: claimsData, error: claimsError } = await supabase
+        .from('claims')
+        .select('*')
+        .in('id', claimIds)
+
+      if (claimsError) throw claimsError
+
+      const exportData = (claimsData || []).map(claim => {
+        const matchedDecision = decisions.find(d => d.claim_id === claim.id)
+        return {
+          ...claim,
+          routing_decisions: matchedDecision ? [matchedDecision] : []
+        }
+      }) as unknown as ClaimWithDecision[]
 
       const headers = ['Patient ID', 'Prefix', 'Product Type', 'Charge Amount', 'Recommended Plan', 'Alternate Plan', 'Uplift Amount', 'Decision', 'Reason']
       const rows = exportData.map(claim => {
