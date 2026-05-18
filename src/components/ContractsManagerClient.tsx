@@ -163,7 +163,7 @@ export function ContractsManagerClient({ initialClients }: ContractsManagerClien
           id="clientSelect"
           value={selectedClientId}
           onChange={(e) => setSelectedClientId(e.target.value)}
-          className="block w-full max-w-md rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+          className="block w-full max-w-md border border-gray-300 rounded-md px-3 py-2"
         >
           <option value="">-- Choose a Client --</option>
           {initialClients.map((c) => (
@@ -238,7 +238,7 @@ export function ContractsManagerClient({ initialClients }: ContractsManagerClien
                   id="planName"
                   value={planName}
                   onChange={(e) => setPlanName(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
                 >
                   <option value="Anthem">Anthem</option>
                   <option value="Blue Shield">Blue Shield</option>
@@ -251,7 +251,7 @@ export function ContractsManagerClient({ initialClients }: ContractsManagerClien
                   id="stateCode"
                   value={stateCode}
                   onChange={(e) => setStateCode(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
                 >
                   <option value="CA">CA</option>
                 </select>
@@ -263,7 +263,7 @@ export function ContractsManagerClient({ initialClients }: ContractsManagerClien
                   id="productType"
                   value={productType}
                   onChange={(e) => setProductType(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
                 >
                   <option value="PPO">PPO</option>
                   <option value="HMO">HMO</option>
@@ -282,7 +282,7 @@ export function ContractsManagerClient({ initialClients }: ContractsManagerClien
                   placeholder="e.g. 85"
                   value={reimbursementRate}
                   onChange={(e) => setReimbursementRate(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
                 />
               </div>
 

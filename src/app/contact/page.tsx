@@ -104,35 +104,35 @@ export default function ContactPage() {
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700">Full Name <span className="text-red-500">*</span></label>
                 <div className="mt-1">
-                  <input id="name" name="name" type="text" required value={name} onChange={e => setName(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-electric focus:ring-electric sm:text-sm px-3 py-2 border" />
+                  <input id="name" name="name" type="text" required value={name} onChange={e => setName(e.target.value)} className="block w-full border border-gray-300 rounded-md px-3 py-2" />
                 </div>
               </div>
 
               <div>
                 <label htmlFor="hospitalName" className="block text-sm font-medium text-gray-700">Hospital Name <span className="text-red-500">*</span></label>
                 <div className="mt-1">
-                  <input id="hospitalName" name="hospitalName" type="text" required value={hospitalName} onChange={e => setHospitalName(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-electric focus:ring-electric sm:text-sm px-3 py-2 border" />
+                  <input id="hospitalName" name="hospitalName" type="text" required value={hospitalName} onChange={e => setHospitalName(e.target.value)} className="block w-full border border-gray-300 rounded-md px-3 py-2" />
                 </div>
               </div>
 
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email address <span className="text-red-500">*</span></label>
                 <div className="mt-1">
-                  <input id="email" name="email" type="email" required value={email} onChange={e => setEmail(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-electric focus:ring-electric sm:text-sm px-3 py-2 border" />
+                  <input id="email" name="email" type="email" required value={email} onChange={e => setEmail(e.target.value)} className="block w-full border border-gray-300 rounded-md px-3 py-2" />
                 </div>
               </div>
 
               <div>
                 <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
                 <div className="mt-1">
-                  <input id="phone" name="phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-electric focus:ring-electric sm:text-sm px-3 py-2 border" />
+                  <input id="phone" name="phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="block w-full border border-gray-300 rounded-md px-3 py-2" />
                 </div>
               </div>
 
               <div>
                 <label htmlFor="message" className="block text-sm font-medium text-gray-700">Message <span className="text-gray-400 font-normal">(optional)</span></label>
                 <div className="mt-1">
-                  <textarea id="message" name="message" rows={3} value={message} onChange={e => setMessage(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-electric focus:ring-electric sm:text-sm px-3 py-2 border" />
+                  <textarea id="message" name="message" rows={3} value={message} onChange={e => setMessage(e.target.value)} className="block w-full border border-gray-300 rounded-md px-3 py-2" />
                 </div>
               </div>
 

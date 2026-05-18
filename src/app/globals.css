@@ -20,8 +20,50 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-@layer utilities {
+@layer base {
   .text-balance {
     text-wrap: balance;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="password"],
+  select,
+  textarea {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    padding: 10px 12px !important;
+    font-size: 14px !important;
+    color: #0f172a !important;
+    min-height: 42px !important;
+    width: 100% !important;
+    outline: none !important;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
+    appearance: auto !important;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+  }
+
+  input[type="text"]:focus,
+  input[type="email"]:focus,
+  input[type="tel"]:focus,
+  input[type="number"]:focus,
+  input[type="password"]:focus,
+  select:focus,
+  textarea:focus {
+    border-color: #1d4ed8 !important;
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15) !important;
+  }
+
+  select option {
+    color: #0f172a !important;
+    background-color: #ffffff !important;
   }
 }
