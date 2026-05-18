@@ -39,6 +39,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/clients" className="block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 font-medium">Clients</Link>
           <Link href="/admin/prefixes" className="block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 font-medium">Prefix Manager</Link>
           <Link href="/admin/leads" className="block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 font-medium">Leads</Link>
+          <Link href="/admin/contracts" className="block px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 font-medium">Contracts</Link>
         </nav>
         <div className="p-4 border-t border-gray-200">
           <form action={handleSignOut}>
