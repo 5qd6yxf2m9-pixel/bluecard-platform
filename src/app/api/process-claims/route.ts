@@ -5,31 +5,37 @@ import { processClain } from '@/lib/rulesEngine'
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient()
+
+    // 1. Get authenticated session at the very top
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError || !session || !session.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // 2. Fetch user's profile to verify existence
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('client_id')
+      .eq('id', session.user.id)
+      .single()
+
+    if (profileError || !profile) {
+      return NextResponse.json({ error: 'No profile found' }, { status: 401 })
+    }
+
+    // 3. Parse JSON body
     const body = await request.json() as Record<string, unknown>
     const batch_id = body.batch_id as string
 
     if (!batch_id) {
       return NextResponse.json({ error: 'batch_id is required' }, { status: 400 })
     }
-    
-    // 1. Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    if (!profile.client_id) {
+      return NextResponse.json({ error: 'Profile has no client_id' }, { status: 400 })
     }
 
-    // 2. Fetch user's client_id from profiles
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('client_id')
-      .eq('id', user.id)
-      .single()
-
-    if (profileError || !profile?.client_id) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-    }
-
-    // 3. Get all pending claims for the batch
+    // 4. Get all pending claims for the batch
     const { data: claims, error: claimsError } = await supabase
       .from('claims')
       .select('*')
@@ -117,7 +123,7 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', batch_id)
 
-    // 7. Return summary
+    // Return summary
     return NextResponse.json({
       message: 'Processing complete',
       processed: processedCount,
