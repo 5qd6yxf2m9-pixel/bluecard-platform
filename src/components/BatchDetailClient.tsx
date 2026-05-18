@@ -222,12 +222,12 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
     setExpandedClaimId(expandedClaimId === claimId ? null : claimId)
   }
 
-  const renderStatusBadge = (claim: ClaimWithDecision) => {
+  const renderConfidenceBadge = (claim: ClaimWithDecision) => {
     const decision = claim.routing_decisions?.[0]
     if (!decision) {
       return (
         <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
-          {claim.status}
+          N/A
         </span>
       )
     }
@@ -255,48 +255,32 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
       )
     }
 
-    if (decision.decision === 'approved') {
-      const score = decision.confidence_score
-      if (score !== null && score !== undefined) {
-        if (score >= 85) {
-          return (
-            <span className="inline-flex items-center rounded-md bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
-              Approved · High ({score})
-            </span>
-          )
-        } else if (score >= 60) {
-          return (
-            <span className="inline-flex items-center rounded-md bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
-              Approved · Medium ({score})
-            </span>
-          )
-        } else {
-          return (
-            <span className="inline-flex items-center rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
-              Approved · Low ({score})
-            </span>
-          )
-        }
+    const score = decision.confidence_score
+    if (score !== null && score !== undefined) {
+      if (score >= 85) {
+        return (
+          <span className="inline-flex items-center rounded-md bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
+            High ({score})
+          </span>
+        )
+      } else if (score >= 60) {
+        return (
+          <span className="inline-flex items-center rounded-md bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
+            Medium ({score})
+          </span>
+        )
+      } else {
+        return (
+          <span className="inline-flex items-center rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
+            Low ({score})
+          </span>
+        )
       }
-      return (
-        <span className="inline-flex items-center rounded-md bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
-          Approved
-        </span>
-      )
-    }
-
-    if (decision.decision === 'manual_review') {
-      const score = decision.confidence_score ?? 0
-      return (
-        <span className="inline-flex items-center rounded-md bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 ring-1 ring-inset ring-orange-600/20">
-          Manual Review · Low ({score})
-        </span>
-      )
     }
 
     return (
-      <span className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
-        {decision.decision}
+      <span className="inline-flex items-center rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
+        Low (0)
       </span>
     )
   }
@@ -366,7 +350,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                   : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
               }`}
             >
-              Routing Decisions
+              Approved
             </button>
             <button
               onClick={() => { setTab('manual_review'); }}
@@ -392,7 +376,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
         <div className="bg-white shadow sm:rounded-lg overflow-hidden">
           <div className="px-4 py-5 sm:px-6 flex justify-between items-center border-b border-gray-200">
             <h3 className="text-base font-semibold leading-6 text-gray-900">
-              {tab === 'routing_decisions' ? 'Approved Routing Decisions' : 'Manual Review Queue'}
+              {tab === 'routing_decisions' ? 'Approved Claims' : 'Manual Review Queue'}
             </h3>
             <input 
               type="text" 
@@ -410,7 +394,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
               </div>
             ) : claims.length === 0 ? (
               <div className="px-4 py-24 text-center text-sm text-gray-500">
-                {tab === 'routing_decisions' ? 'No approved routing decisions found.' : 'No claims require manual review.'}
+                {tab === 'routing_decisions' ? 'No approved claims found.' : 'No claims require manual review.'}
               </div>
             ) : (
               <table className="min-w-full divide-y divide-gray-300">
@@ -431,7 +415,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                     ) : (
                       <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900" colSpan={2}>Actions</th>
                     )}
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Confidence</th>
                     <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
                       <span className="sr-only">Details</span>
                     </th>
@@ -560,7 +544,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                           )}
 
                           <td className="whitespace-nowrap px-3 py-4 text-sm">
-                            {renderStatusBadge(claim)}
+                            {renderConfidenceBadge(claim)}
                           </td>
                           <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                             <button
@@ -579,6 +563,12 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                                 <p className="text-gray-700 whitespace-normal leading-relaxed text-sm font-medium">
                                   {decision?.reason || 'No detailed reason provided.'}
                                 </p>
+                                {tab === 'manual_review' && (
+                                  <>
+                                    {isPrefixIssue && <p className="mt-2.5 text-xs text-red-600 font-semibold bg-red-50 border border-red-100 rounded px-2.5 py-1.5 inline-block">Note: Prefix not recognized. Verify member eligibility and select the correct local plan.</p>}
+                                    {isMAorFEP && <p className="mt-2.5 text-xs text-yellow-600 font-semibold bg-yellow-50 border border-yellow-100 rounded px-2.5 py-1.5 inline-block">Note: Medicare Advantage or FEP products are billed outside standard BlueCard routing.</p>}
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
