@@ -221,6 +221,9 @@ export function LandingClient() {
             <a href="#how-it-works" className="hover:text-electric transition-colors">How It Works</a>
             <a href="#features" className="hover:text-electric transition-colors">Features</a>
             <a href="#results" className="hover:text-electric transition-colors">Results</a>
+            <Link href="/login" className="text-navy hover:text-electric transition-colors">
+              Log In
+            </Link>
             <Link href="/contact" className="bg-navy text-white px-5 py-2.5 rounded-md hover:bg-electric transition-all duration-300 hover:scale-[1.02]">
               Request Demo
             </Link>
