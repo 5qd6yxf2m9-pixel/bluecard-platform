@@ -86,7 +86,7 @@ function HeroAnimation() {
     }).format(val);
 
   return (
-    <div className="relative w-full max-w-md mx-auto aspect-[4/3] flex items-center justify-center">
+    <div className="relative w-full max-w-[500px] mx-auto aspect-[4/3] flex items-center justify-center">
       <div className="w-full bg-white rounded-xl shadow-2xl shadow-navy/10 border border-gray-100 p-6 min-h-[300px] flex flex-col justify-between">
         <div className={`transition-all duration-300 ${fade ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
           
@@ -111,10 +111,10 @@ function HeroAnimation() {
                 ? 'border-electric bg-blue-50/50 shadow-[0_0_15px_rgba(0,102,255,0.15)] scale-[1.02]'
                 : 'border-gray-200 bg-gray-50/50'
             }`}>
-              <div className="flex items-center space-x-2">
-                <div className="font-medium text-navy">Anthem Blue Cross</div>
+              <div className="flex items-center space-x-2 flex-shrink-0">
+                <div className="font-semibold text-navy text-lg whitespace-nowrap">Anthem Blue Cross</div>
                 {current.winner === 'anthem' && (
-                  <div className="flex items-center space-x-1 bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">
+                  <div className="flex items-center space-x-1 bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap flex-shrink-0">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
@@ -123,13 +123,13 @@ function HeroAnimation() {
                 )}
               </div>
               
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 flex-shrink-0">
                 {current.winner === 'anthem' && (
-                  <span className="bg-electric text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                  <span className="bg-electric text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm whitespace-nowrap flex-shrink-0">
                     +{formatCurrency(current.uplift)} uplift
                   </span>
                 )}
-                <div className={`font-bold ${current.winner === 'anthem' ? 'text-electric' : 'text-gray-900'}`}>
+                <div className={`font-extrabold text-xl whitespace-nowrap ${current.winner === 'anthem' ? 'text-electric' : 'text-gray-900'}`}>
                   {formatCurrency(current.anthem)}
                 </div>
               </div>
@@ -141,10 +141,10 @@ function HeroAnimation() {
                 ? 'border-electric bg-blue-50/50 shadow-[0_0_15px_rgba(0,102,255,0.15)] scale-[1.02]'
                 : 'border-gray-200 bg-gray-50/50'
             }`}>
-              <div className="flex items-center space-x-2">
-                <div className="font-medium text-navy">Blue Shield of CA</div>
+              <div className="flex items-center space-x-2 flex-shrink-0">
+                <div className="font-semibold text-navy text-lg whitespace-nowrap">Blue Shield of CA</div>
                 {current.winner === 'bs' && (
-                  <div className="flex items-center space-x-1 bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">
+                  <div className="flex items-center space-x-1 bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap flex-shrink-0">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
@@ -153,13 +153,13 @@ function HeroAnimation() {
                 )}
               </div>
               
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 flex-shrink-0">
                 {current.winner === 'bs' && (
-                  <span className="bg-electric text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                  <span className="bg-electric text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm whitespace-nowrap flex-shrink-0">
                     +{formatCurrency(current.uplift)} uplift
                   </span>
                 )}
-                <div className={`font-bold ${current.winner === 'bs' ? 'text-electric' : 'text-gray-900'}`}>
+                <div className={`font-extrabold text-xl whitespace-nowrap ${current.winner === 'bs' ? 'text-electric' : 'text-gray-900'}`}>
                   {formatCurrency(current.bs)}
                 </div>
               </div>
