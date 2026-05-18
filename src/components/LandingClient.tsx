@@ -391,8 +391,8 @@ export function LandingClient() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
           <div className="font-display font-bold text-lg text-navy mb-4 md:mb-0">BlueCard Platform</div>
           <div className="flex space-x-6 text-sm text-gray-500 mb-4 md:mb-0">
-            <a href="#" className="hover:text-navy transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-navy transition-colors">Contact</a>
+            <Link href="/privacy" className="hover:text-navy transition-colors">Privacy Policy</Link>
+            <Link href="/contact" className="hover:text-navy transition-colors">Contact</Link>
           </div>
           <div className="text-sm text-gray-400">
             &copy; 2026 BlueCard Platform LLC

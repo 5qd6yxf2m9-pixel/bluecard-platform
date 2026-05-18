@@ -56,6 +56,11 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
+  // Allow public access to /privacy
+  if (request.nextUrl.pathname.startsWith('/privacy')) {
+    return response
+  }
+
   // Protect /dashboard
   if (request.nextUrl.pathname.startsWith('/dashboard')) {
     if (!user) {
