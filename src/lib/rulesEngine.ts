@@ -17,10 +17,25 @@ export interface RoutingDecision {
   recommended_plan?: string;
   alternate_plan?: string;
   uplift_amount?: number;
+  anthem_expected?: number;
+  blueshield_expected?: number;
 }
 
 export async function processClain(claim: Claim, supabase: SupabaseClient): Promise<RoutingDecision> {
   const { client_id, product_type, charge_amount } = claim
+
+  // Fetch contracts first to have expected amounts available for all prefix scenarios
+  const { data: contracts } = await supabase
+    .from('plan_contracts')
+    .select('plan_name, reimbursement_rate')
+    .eq('client_id', client_id)
+    .eq('product_type', product_type)
+
+  const anthemContract = contracts?.find(c => c.plan_name === 'Anthem')
+  const bsContract = contracts?.find(c => c.plan_name === 'Blue Shield')
+
+  const anthemExpected = anthemContract ? Number((charge_amount * anthemContract.reimbursement_rate).toFixed(2)) : null
+  const blueshieldExpected = bsContract ? Number((charge_amount * bsContract.reimbursement_rate).toFixed(2)) : null
 
   // 1. Look up the alpha prefix in alpha_prefix_reference
   const { data: prefixData } = await supabase
@@ -33,7 +48,9 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
   if (!prefixData) {
     return {
       decision: 'manual_review',
-      reason: 'Invalid or inactive alpha prefix'
+      reason: 'Invalid or inactive alpha prefix',
+      anthem_expected: anthemExpected || undefined,
+      blueshield_expected: blueshieldExpected || undefined
     }
   }
 
@@ -47,15 +64,8 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
     }
   }
 
-  // 4. Look up plan_contracts for this client_id and product_type
-  const { data: contracts, error: contractsError } = await supabase
-    .from('plan_contracts')
-    .select('plan_name, reimbursement_rate')
-    .eq('client_id', client_id)
-    .eq('product_type', product_type)
-
   // 5. If neither plan has a contract
-  if (contractsError || !contracts || contracts.length === 0) {
+  if (!contracts || contracts.length === 0) {
     return {
       decision: 'manual_review',
       reason: 'No contracts found for this product type'
@@ -68,7 +78,9 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
       decision: 'approved',
       reason: `Only one contracted plan found: ${contracts[0].plan_name}`,
       recommended_plan: contracts[0].plan_name,
-      uplift_amount: 0
+      uplift_amount: 0,
+      anthem_expected: anthemExpected || undefined,
+      blueshield_expected: blueshieldExpected || undefined
     }
   }
 
@@ -89,6 +101,8 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
     reason: `Routed to ${bestPlan.plan_name} for highest reimbursement`,
     recommended_plan: bestPlan.plan_name,
     alternate_plan: alternatePlan.plan_name,
-    uplift_amount: Number(upliftAmount.toFixed(2))
+    uplift_amount: Number(upliftAmount.toFixed(2)),
+    anthem_expected: anthemExpected || undefined,
+    blueshield_expected: blueshieldExpected || undefined
   }
 }

@@ -1,3 +1,7 @@
+// REMINDER: Run the following SQL migration in Supabase console:
+// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS anthem_expected numeric;
+// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS blueshield_expected numeric;
+
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { BatchDetailClient } from '@/components/BatchDetailClient'

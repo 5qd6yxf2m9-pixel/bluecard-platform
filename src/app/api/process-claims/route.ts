@@ -67,6 +67,8 @@ export async function POST(request: NextRequest) {
           recommended_plan: decisionResult.recommended_plan || null,
           alternate_plan: decisionResult.alternate_plan || null,
           uplift_amount: decisionResult.uplift_amount || null,
+          anthem_expected: decisionResult.anthem_expected || null,
+          blueshield_expected: decisionResult.blueshield_expected || null,
         })
 
         claimIdsToUpdate.push(claim.id)

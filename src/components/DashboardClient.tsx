@@ -12,6 +12,8 @@ export interface RoutingDecisionData {
   recommended_plan: string | null;
   alternate_plan: string | null;
   uplift_amount: number | null;
+  anthem_expected: number | null;
+  blueshield_expected: number | null;
 }
 
 export interface ClaimWithDecision {

@@ -1,3 +1,7 @@
+// REMINDER: Run the following SQL migration in Supabase console:
+// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS anthem_expected numeric;
+// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS blueshield_expected numeric;
+
 'use client'
 
 import { useState } from 'react'
@@ -163,7 +167,9 @@ export function BatchDetailClient({ batch, tableData, contracts }: BatchDetailCl
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Recommended Plan</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Anthem Expected</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Blue Shield Expected</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Recommended</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Uplift</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Decision</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Reason</th>
@@ -172,14 +178,63 @@ export function BatchDetailClient({ batch, tableData, contracts }: BatchDetailCl
               <tbody className="divide-y divide-gray-200 bg-white">
                 {paginatedData.map((claim) => {
                   const decision = claim.routing_decisions?.[0]
+                  
+                  let anthemExpectedVal = decision?.anthem_expected ?? null;
+                  let bsExpectedVal = decision?.blueshield_expected ?? null;
+
+                  const isMAorFEP = claim.product_type === 'MA' || claim.product_type === 'FEP' || decision?.reason.includes('Medicare Advantage') || decision?.reason.includes('FEP');
+                  const isPrefixIssue = decision?.reason.toLowerCase().includes('prefix');
+
+                  if (isMAorFEP) {
+                    anthemExpectedVal = null;
+                    bsExpectedVal = null;
+                  } else if (isPrefixIssue || (decision && anthemExpectedVal === null && bsExpectedVal === null)) {
+                    const anthemContract = contracts.find(c => c.product_type === claim.product_type && c.plan_name === 'Anthem')
+                    const bsContract = contracts.find(c => c.product_type === claim.product_type && c.plan_name === 'Blue Shield')
+                    if (anthemContract) anthemExpectedVal = claim.charge_amount * anthemContract.reimbursement_rate
+                    if (bsContract) bsExpectedVal = claim.charge_amount * bsContract.reimbursement_rate
+                  }
+
+                  let anthemClass = "text-gray-500";
+                  let bsClass = "text-gray-500";
+                  if (anthemExpectedVal !== null && bsExpectedVal !== null) {
+                    if (anthemExpectedVal > bsExpectedVal) {
+                      anthemClass = "font-bold text-navy";
+                    } else if (bsExpectedVal > anthemExpectedVal) {
+                      bsClass = "font-bold text-navy";
+                    } else {
+                      anthemClass = "font-bold text-navy";
+                      bsClass = "font-bold text-navy";
+                    }
+                  } else if (anthemExpectedVal !== null) {
+                    anthemClass = "font-bold text-navy";
+                  } else if (bsExpectedVal !== null) {
+                    bsClass = "font-bold text-navy";
+                  }
+
+                  let upliftVal = decision?.uplift_amount ?? null;
+                  if (upliftVal === null && anthemExpectedVal !== null && bsExpectedVal !== null) {
+                    upliftVal = Math.abs(anthemExpectedVal - bsExpectedVal);
+                  }
+
                   return (
                     <tr key={claim.id}>
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{decision?.recommended_plan || '-'}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{decision?.uplift_amount ? formatCurrency(decision.uplift_amount) : '-'}</td>
+                      <td className={`whitespace-nowrap px-3 py-4 text-sm ${anthemClass}`}>{anthemExpectedVal !== null ? formatCurrency(anthemExpectedVal) : '-'}</td>
+                      <td className={`whitespace-nowrap px-3 py-4 text-sm ${bsClass}`}>{bsExpectedVal !== null ? formatCurrency(bsExpectedVal) : '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm">
+                        {decision?.recommended_plan && decision.recommended_plan !== '-' ? (
+                          <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
+                            {decision.recommended_plan}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{upliftVal !== null && upliftVal > 0 ? formatCurrency(upliftVal) : '-'}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                         {decision ? (
                           <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
