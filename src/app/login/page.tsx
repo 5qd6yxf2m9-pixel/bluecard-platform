@@ -3,85 +3,152 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    
-    if (error) {
-      setError("Invalid email or password.")
-    } else {
-      router.push('/dashboard')
-      router.refresh()
+    setLoading(true)
+
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      
+      if (authError) {
+        setError("Invalid email or password.")
+      } else {
+        router.push('/dashboard')
+        router.refresh()
+      }
+    } catch {
+      setError("An unexpected error occurred. Please try again.")
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8">
+    <div className="flex min-h-screen bg-white text-navy selection:bg-electric selection:text-white font-sans">
+      
+      {/* Left Column - 45% Width */}
+      <div className="hidden lg:flex lg:w-[45%] bg-[#0a1628] flex-col justify-between p-12 text-white relative overflow-hidden">
+        {/* Subtle grid pattern */}
+        <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.03] -z-10" />
+        
+        {/* Logo at the top */}
         <div>
-          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-            Sign in to BlueCard Platform
-          </h2>
+          <Link href="/" className="font-display font-bold text-xl tracking-tight text-white hover:text-electric transition-colors">
+            BlueCard Platform
+          </Link>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-          <div className="-space-y-px rounded-md shadow-sm">
-            <div>
-              <label htmlFor="email-address" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="email-address"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="relative block w-full rounded-t-md border-0 py-1.5 px-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="relative block w-full rounded-b-md border-0 py-1.5 px-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+
+        {/* Center Quote/Statement */}
+        <div className="my-auto max-w-md">
+          <h1 className="font-display text-4xl font-bold leading-tight mb-8">
+            Route every BlueCard claim to the highest-paying plan. Automatically.
+          </h1>
+        </div>
+
+        {/* Bottom Stat Pills */}
+        <div className="flex flex-wrap gap-3">
+          <div className="px-4 py-2 bg-white/5 rounded-full text-sm font-medium text-white/90 backdrop-blur-sm border border-white/10">
+            <span className="text-electric font-bold">$5.5M</span> recovered
           </div>
+          <div className="px-4 py-2 bg-white/5 rounded-full text-sm font-medium text-white/90 backdrop-blur-sm border border-white/10">
+            <span className="text-electric font-bold">2,744</span> prefixes
+          </div>
+          <div className="px-4 py-2 bg-white/5 rounded-full text-sm font-medium text-white/90 backdrop-blur-sm border border-white/10">
+            <span className="text-electric font-bold">100%</span> prebill
+          </div>
+        </div>
+      </div>
 
-          {error && <div className="text-red-500 text-sm text-center">{error}</div>}
-
+      {/* Right Column - 55% Width */}
+      <div className="w-full lg:w-[55%] flex items-center justify-center p-8 sm:p-12 md:p-20">
+        <div className="w-full max-w-md space-y-8">
           <div>
-            <button
-              type="submit"
-              className="group relative flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-            >
-              Sign in
-            </button>
+            <div className="flex lg:hidden mb-8">
+              <Link href="/" className="font-display font-bold text-xl tracking-tight text-navy">
+                BlueCard Platform
+              </Link>
+            </div>
+            <span className="text-xs font-bold tracking-widest text-gray-400 uppercase">Welcome back</span>
+            <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-navy font-display">
+              Sign in to your account
+            </h2>
           </div>
-        </form>
+
+          <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+            {error && (
+              <div className="rounded-md bg-red-50 p-4">
+                <div className="text-sm text-red-700 text-center">{error}</div>
+              </div>
+            )}
+            
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="email-address" className="block text-sm font-medium text-gray-700">
+                  Email address
+                </label>
+                <input
+                  id="email-address"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2.5 shadow-sm focus:border-electric focus:ring-1 focus:ring-electric sm:text-sm outline-none transition-all"
+                  placeholder="you@hospital.org"
+                />
+              </div>
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2.5 shadow-sm focus:border-electric focus:ring-1 focus:ring-electric sm:text-sm outline-none transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={loading}
+                className={`flex w-full justify-center rounded-md border border-transparent bg-navy py-3 px-4 text-sm font-semibold text-white shadow-sm hover:bg-electric focus:outline-none focus:ring-2 focus:ring-electric focus:ring-offset-2 transition-all duration-300 ${
+                  loading ? 'opacity-70 cursor-not-allowed' : ''
+                }`}
+              >
+                {loading ? 'Signing in...' : 'Sign in'}
+              </button>
+            </div>
+
+            <div className="text-center mt-6">
+              <Link href="/contact" className="text-sm text-gray-500 hover:text-electric transition-colors">
+                Not a client yet? <span className="font-semibold text-navy hover:text-electric transition-colors">Request a demo</span>
+              </Link>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   )
