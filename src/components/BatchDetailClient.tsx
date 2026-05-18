@@ -222,11 +222,27 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
     setExpandedClaimId(expandedClaimId === claimId ? null : claimId)
   }
 
+  const getReasonLines = (reason: string) => {
+    if (!reason) return []
+    
+    if (reason.includes('|')) {
+      return reason.split('|').map(line => line.trim()).filter(Boolean)
+    }
+
+    // Fallback splitting logic for older records
+    let parsed = reason
+    parsed = parsed.replace(/- Medium confidence/g, '|Medium confidence')
+    parsed = parsed.replace(/Warning:/g, '|Warning:')
+    parsed = parsed.split('. ').join('.|')
+    
+    return parsed.split('|').map(line => line.trim()).filter(Boolean)
+  }
+
   const renderConfidenceBadge = (claim: ClaimWithDecision) => {
     const decision = claim.routing_decisions?.[0]
     if (!decision) {
       return (
-        <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
+        <span className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">
           N/A
         </span>
       )
@@ -558,16 +574,28 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                         {isExpanded && (
                           <tr className="bg-gray-50/50">
                             <td colSpan={11} className="px-6 py-4 text-sm text-gray-700">
-                              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm max-w-4xl">
-                                <h4 className="font-semibold text-gray-900 mb-1.5 text-xs uppercase tracking-wider text-gray-500">Routing Decision Reason</h4>
-                                <p className="text-gray-700 whitespace-normal leading-relaxed text-sm font-medium">
-                                  {decision?.reason || 'No detailed reason provided.'}
-                                </p>
+                              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm max-w-4xl space-y-2">
+                                <h4 className="font-semibold text-gray-900 mb-2 text-xs uppercase tracking-wider text-gray-500">Routing Decision Details</h4>
+                                {getReasonLines(decision?.reason || '').map((line, idx) => {
+                                  const isWarning = line.startsWith('Warning:')
+                                  return (
+                                    <p 
+                                      key={idx} 
+                                      className={`text-sm leading-relaxed ${
+                                        isWarning 
+                                          ? 'text-amber-600 font-semibold bg-amber-50 border border-amber-100 rounded px-3 py-1.5 inline-block w-full' 
+                                          : 'text-gray-700 font-medium'
+                                      }`}
+                                    >
+                                      {line}
+                                    </p>
+                                  )
+                                })}
                                 {tab === 'manual_review' && (
-                                  <>
-                                    {isPrefixIssue && <p className="mt-2.5 text-xs text-red-600 font-semibold bg-red-50 border border-red-100 rounded px-2.5 py-1.5 inline-block">Note: Prefix not recognized. Verify member eligibility and select the correct local plan.</p>}
-                                    {isMAorFEP && <p className="mt-2.5 text-xs text-yellow-600 font-semibold bg-yellow-50 border border-yellow-100 rounded px-2.5 py-1.5 inline-block">Note: Medicare Advantage or FEP products are billed outside standard BlueCard routing.</p>}
-                                  </>
+                                  <div className="pt-2 border-t border-gray-100 mt-2 space-y-2">
+                                    {isPrefixIssue && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 rounded px-2.5 py-1.5 inline-block">Note: Prefix not recognized. Verify member eligibility and select the correct local plan.</p>}
+                                    {isMAorFEP && <p className="text-xs text-yellow-600 font-semibold bg-yellow-50 border border-yellow-100 rounded px-2.5 py-1.5 inline-block">Note: Medicare Advantage or FEP products are billed outside standard BlueCard routing.</p>}
+                                  </div>
                                 )}
                               </div>
                             </td>

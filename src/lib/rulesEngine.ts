@@ -88,7 +88,7 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
     ageWarning = 'Warning: Date of service is over 1 year old - prefix may have changed'
   }
 
-  // 2. If found and is a BlueCard Program prefix, the claim is valid and eligible for routing comparison
+  // 2. If found and is a BlueCard Program prefix, the claim is valid and eligible for comparison
 
   // 3. Check if product_type is 'MA' or 'FEP'
   if (product_type === 'MA' || product_type === 'FEP') {
@@ -119,18 +119,21 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
 
     score = Math.max(0, score)
     const finalDecision = score >= 60 ? 'approved' : 'manual_review'
-    const baseReason = `Only one contracted plan found: ${contracts[0].plan_name}`
     
-    let finalReason = baseReason
+    const reasonParts: string[] = []
+    reasonParts.push(`Only one contracted plan found: ${contracts[0].plan_name}`)
+    
     if (ageWarning) {
-      finalReason = `${finalReason}. ${ageWarning}`
+      reasonParts.push(ageWarning)
     }
 
     if (score < 60) {
-      finalReason = `Low confidence (${score}/100) - ${finalReason}`
+      reasonParts.unshift(`Low confidence (${score}/100)`)
     } else if (score >= 60 && score <= 84) {
-      finalReason = `${finalReason} - Medium confidence, verify before billing`
+      reasonParts.push(`Medium confidence verify before billing`)
     }
+
+    const finalReason = reasonParts.join('|')
 
     return {
       decision: finalDecision,
@@ -167,18 +170,21 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
 
   score = Math.max(0, score)
   const finalDecision = score >= 60 ? 'approved' : 'manual_review'
-  const baseReason = `Routed to ${bestPlan.plan_name} for highest reimbursement`
   
-  let finalReason = baseReason
+  const reasonParts: string[] = []
+  reasonParts.push(`Routed to ${bestPlan.plan_name} for highest reimbursement`)
+  
   if (ageWarning) {
-    finalReason = `${finalReason}. ${ageWarning}`
+    reasonParts.push(ageWarning)
   }
 
   if (score < 60) {
-    finalReason = `Low confidence (${score}/100) - ${finalReason}`
+    reasonParts.unshift(`Low confidence (${score}/100)`)
   } else if (score >= 60 && score <= 84) {
-    finalReason = `${finalReason} - Medium confidence, verify before billing`
+    reasonParts.push(`Medium confidence verify before billing`)
   }
+
+  const finalReason = reasonParts.join('|')
 
   // 9. Return approved decision or manual review depending on score
   return {
