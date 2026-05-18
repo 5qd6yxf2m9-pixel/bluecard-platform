@@ -239,37 +239,45 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white shadow">
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* HEADER */}
+      <header className="bg-[#0a1628] shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <h1 className="text-xl font-bold text-blue-800">BlueCard Platform</h1>
+            <Link href="/dashboard" className="text-xl font-bold text-white font-display hover:opacity-90">
+              BlueCard Platform
+            </Link>
             {role === 'admin' && (
-              <a href="/admin" className="ml-4 text-sm font-medium text-indigo-600 hover:text-indigo-900">
+              <Link href="/admin" className="ml-4 text-sm font-semibold text-[#2563eb] hover:text-blue-400 transition-colors">
                 Admin Dashboard
-              </a>
+              </Link>
             )}
           </div>
           <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600">{userEmail}</span>
-            <button onClick={handleSignOut} className="text-sm text-indigo-600 hover:text-indigo-900 font-medium">
+            <span className="text-sm text-gray-400 font-medium">{userEmail}</span>
+            <button 
+              onClick={handleSignOut} 
+              className="text-sm text-white font-semibold border border-white/20 hover:bg-white/10 px-3 py-1.5 rounded-md transition-colors"
+            >
               Sign out
             </button>
           </div>
         </div>
       </header>
 
+      {/* MAIN CONTAINER */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
         
-        <div className="flex justify-between items-center border-b border-gray-200 pb-5">
+        {/* TABS & NEW UPLOAD */}
+        <div className="flex justify-between items-end border-b border-gray-200 pb-5">
           <div className="flex flex-col space-y-2">
-            <h2 className="text-2xl font-bold text-gray-900">Batches</h2>
+            <h2 className="text-2xl font-bold text-[#0a1628] font-display">Batches</h2>
             <nav className="flex space-x-8" aria-label="Tabs">
               <button
                 onClick={() => setTab('active')}
-                className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm ${
+                className={`whitespace-nowrap pb-4 px-1 border-b-2 font-semibold text-sm transition-colors ${
                   tab === 'active'
-                    ? 'border-indigo-500 text-indigo-600'
+                    ? 'border-[#2563eb] text-[#2563eb]'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -277,16 +285,16 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
               </button>
               <button
                 onClick={() => setTab('completed')}
-                className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                className={`whitespace-nowrap pb-4 px-1 border-b-2 font-semibold text-sm flex items-center space-x-2 transition-colors ${
                   tab === 'completed'
-                    ? 'border-indigo-500 text-indigo-600'
+                    ? 'border-[#2563eb] text-[#2563eb]'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 <span>Completed</span>
                 {completedCount > 0 && (
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                    tab === 'completed' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-900'
+                    tab === 'completed' ? 'bg-blue-50 text-[#2563eb]' : 'bg-gray-100 text-gray-900'
                   }`}>
                     {completedCount}
                   </span>
@@ -297,88 +305,160 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
           
           {tab === 'active' && (
             <button
-              onClick={() => setShowUpload(!showUpload)}
-              className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+              onClick={() => setShowUpload(true)}
+              className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
             >
-              {showUpload ? 'Cancel' : 'New Upload'}
+              New Upload
             </button>
           )}
         </div>
 
-        {tab === 'active' && showUpload && (
-          <div className="bg-white shadow sm:rounded-lg">
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-base font-semibold leading-6 text-gray-900">Upload Claims</h3>
-              <div className="mt-2 max-w-xl text-sm text-gray-500">
-                <p>Drag and drop a CSV file here, or click to browse. Processing starts automatically.</p>
+        {/* UPLOAD MODAL */}
+        {showUpload && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100 relative animate-in fade-in zoom-in-95 duration-200">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-[#0a1628]">
+                <h3 className="text-lg font-bold text-white font-display">Upload Claims</h3>
+                <button 
+                  onClick={() => { setShowUpload(false); setError(null); }}
+                  className="text-gray-400 hover:text-white transition-colors p-1"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <div 
-                onDrop={onDrop}
-                onDragOver={onDragOver}
-                className={`mt-4 flex justify-center rounded-lg border border-dashed border-gray-900/25 px-6 py-10 ${uploading ? 'opacity-50' : 'hover:bg-gray-50 transition-colors'}`}
-              >
-                <div className="text-center">
-                  <label className="relative cursor-pointer rounded-md bg-white font-semibold text-indigo-600 focus-within:outline-none hover:text-indigo-500">
-                    <span>Upload a file</span>
-                    <input type="file" className="sr-only" accept=".csv" onChange={handleFileChange} disabled={uploading} />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
-                  <p className="text-xs leading-5 text-gray-600">CSV files only</p>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-gray-500">
+                  Drag and drop a CSV file containing claims data. The BlueCard Platform will process it instantly using our custom rules engine.
+                </p>
+
+                <div 
+                  onDrop={onDrop}
+                  onDragOver={onDragOver}
+                  className={`flex flex-col justify-center items-center rounded-lg border-2 border-dashed border-gray-300 px-6 py-10 transition-colors ${
+                    uploading ? 'opacity-50' : 'hover:bg-blue-50/20 hover:border-[#2563eb] cursor-pointer'
+                  }`}
+                >
+                  <div className="text-center space-y-2">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                    </svg>
+
+                    <label className="relative cursor-pointer rounded-md bg-white font-semibold text-[#2563eb] focus-within:outline-none hover:text-blue-500 transition-colors">
+                      <span>Upload a file</span>
+                      <input type="file" className="sr-only" accept=".csv" onChange={handleFileChange} disabled={uploading} />
+                    </label>
+                    <p className="text-xs text-gray-500">or drag and drop CSV files here</p>
+                  </div>
                 </div>
+
+                {error && (
+                  <div className="rounded-md bg-red-50 p-4 border border-red-200">
+                    <div className="text-sm font-semibold text-red-800">{error}</div>
+                  </div>
+                )}
+                
+                {uploading && (
+                  <div className="flex justify-center items-center space-x-2 text-sm text-[#2563eb] font-semibold animate-pulse">
+                    <span className="h-2 w-2 rounded-full bg-[#2563eb] animate-bounce"></span>
+                    <span>Processing claims in chunks...</span>
+                  </div>
+                )}
               </div>
-              
-              {error && (
-                <div className="mt-4 rounded-md bg-red-50 p-4">
-                  <div className="text-sm text-red-700">{error}</div>
-                </div>
-              )}
-              
-              {uploading && (
-                <div className="mt-4 flex justify-center items-center text-sm text-indigo-600 font-medium">
-                  Processing claims in chunks...
-                </div>
-              )}
+
+              {/* Modal Footer */}
+              <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3 border-t border-gray-100">
+                <button
+                  onClick={() => { setShowUpload(false); setError(null); }}
+                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
 
+        {/* BATCH CARDS GRID */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {loading ? (
-            <div className="col-span-full py-12 text-center text-sm text-gray-500 bg-white shadow rounded-lg animate-pulse">
+            <div className="col-span-full py-24 text-center text-sm text-gray-500 bg-white shadow rounded-lg animate-pulse border border-gray-100">
               Loading batches...
             </div>
           ) : batchesList.length === 0 ? (
-            <div className="col-span-full py-12 text-center text-sm text-gray-500 bg-white shadow rounded-lg">
+            <div className="col-span-full py-24 text-center text-sm text-gray-500 bg-white shadow rounded-lg border border-gray-100">
               {tab === 'active' ? 'No active batches found. Click "New Upload" to get started.' : 'No completed batches found.'}
             </div>
           ) : (
-            batchesList.map(batch => (
-              <div key={batch.id} className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">
-                <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
-                  <h3 className="text-lg font-medium text-gray-900 truncate" title={batch.name}>{batch.name}</h3>
-                  <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-                    batch.status === 'completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
-                    batch.status === 'open' ? 'bg-blue-50 text-blue-700 ring-blue-600/20' :
-                    'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
-                  }`}>
-                    {batch.status}
-                  </span>
-                </div>
+            batchesList.map(batch => {
+              const isOpen = batch.status === 'open'
+              return (
+                <div 
+                  key={batch.id} 
+                  className={`bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col justify-between overflow-hidden transition-all hover:shadow-md ${
+                    isOpen ? 'border-l-4 border-l-[#2563eb]' : 'border-l-4 border-l-green-500'
+                  }`}
+                >
+                  {/* Card Header */}
+                  <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-start space-x-2">
+                    <div className="overflow-hidden">
+                      <h3 className="text-lg font-bold text-[#0a1628] truncate font-display" title={batch.name}>
+                        {batch.name}
+                      </h3>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {new Date(batch.created_at).toLocaleDateString()} at {new Date(batch.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
 
-                <div className="px-4 py-5 sm:p-6 text-sm text-gray-500 space-y-2">
-                  <p>Created: {new Date(batch.created_at).toLocaleString()}</p>
-                  <p>Total Claims: <span className="font-medium text-gray-900">{batch.total_claims}</span></p>
-                  <p>Approved: <span className="font-medium text-green-600">{batch.approved_count}</span></p>
-                  <p>Manual Review: <span className="font-medium text-yellow-600">{batch.manual_review_count}</span></p>
-                  <p>Total Uplift: <span className="font-medium text-blue-600">{formatCurrency(batch.total_uplift)}</span></p>
+                    <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset ${
+                      batch.status === 'completed' 
+                        ? 'bg-green-50 text-green-700 ring-green-600/20' 
+                        : 'bg-blue-50 text-[#2563eb] ring-blue-600/20'
+                    }`}>
+                      {batch.status}
+                    </span>
+                  </div>
+
+                  {/* Card Body (4-column mini grid) */}
+                  <div className="p-5 flex-1">
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="text-center">
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Claims</span>
+                        <span className="block mt-1 font-bold text-[#0a1628] text-sm">{batch.total_claims}</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Approved</span>
+                        <span className="block mt-1 font-bold text-[#0a1628] text-sm">{batch.approved_count}</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Manual</span>
+                        <span className="block mt-1 font-bold text-[#0a1628] text-sm">{batch.manual_review_count}</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Uplift</span>
+                        <span className="block mt-1 font-bold text-[#2563eb] text-sm truncate" title={formatCurrency(batch.total_uplift)}>
+                          {formatCurrency(batch.total_uplift)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Action */}
+                  <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end">
+                    <Link 
+                      href={`/dashboard/batch/${batch.id}`} 
+                      className="inline-flex justify-center items-center bg-[#0a1628] hover:bg-[#12253f] text-white px-4 py-1.5 rounded-md text-xs font-bold transition-colors"
+                    >
+                      View Details
+                    </Link>
+                  </div>
                 </div>
-                <div className="px-4 py-4 sm:px-6">
-                  <Link href={`/dashboard/batch/${batch.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium text-sm">
-                    View Details &rarr;
-                  </Link>
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
 
