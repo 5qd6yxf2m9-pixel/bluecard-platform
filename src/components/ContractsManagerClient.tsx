@@ -168,7 +168,7 @@ export function ContractsManagerClient({ initialClients }: ContractsManagerClien
 
       if (error) throw error
 
-      setSuccessMessage('Contract rate updated successfully!')
+      setSuccessMessage('Rate updated successfully')
       setEditingContractId(null)
       await fetchContracts(selectedClientId)
 
