@@ -15,7 +15,7 @@ interface BatchDetailClientProps {
 }
 
 export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) {
-  const [tab, setTab] = useState<'routing_decisions' | 'manual_review'>('routing_decisions')
+  const [tab, setTab] = useState<'routing_decisions' | 'manual_review' | 'duplicates'>('routing_decisions')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -28,6 +28,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
     totalClaims: batch.total_claims || 0,
     approved: batch.approved_count || 0,
     manualReview: batch.manual_review_count || 0,
+    duplicates: 0,
     totalUplift: batch.total_uplift || 0
   })
 
@@ -70,6 +71,12 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
         .eq('batch_id', batch.id)
         .eq('decision', 'manual_review')
 
+      const { count: duplicatesCount } = await supabase
+        .from('claims')
+        .select('*', { count: 'exact', head: true })
+        .eq('batch_id', batch.id)
+        .eq('status', 'duplicate')
+
       const { data: upliftData } = await supabase
         .from('routing_decisions')
         .select('uplift_amount')
@@ -82,6 +89,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
         totalClaims: totalClaimsCount || 0,
         approved: approvedCount || 0,
         manualReview: manualReviewCount || 0,
+        duplicates: duplicatesCount || 0,
         totalUplift
       })
     } catch { }
@@ -95,18 +103,27 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
       const end = start + itemsPerPage - 1
 
       // Search filters
-      let query = supabase
-        .from('claims')
-        .select(`
-          *,
-          routing_decisions!inner(*)
-        `, { count: 'exact' })
-        .eq('batch_id', batch.id)
-
-      if (tab === 'routing_decisions') {
-        query = query.eq('routing_decisions.decision', 'approved')
+      let query;
+      if (tab === 'duplicates') {
+        query = supabase
+          .from('claims')
+          .select('*', { count: 'exact' })
+          .eq('batch_id', batch.id)
+          .eq('status', 'duplicate')
       } else {
-        query = query.eq('routing_decisions.decision', 'manual_review')
+        query = supabase
+          .from('claims')
+          .select(`
+            *,
+            routing_decisions!inner(*)
+          `, { count: 'exact' })
+          .eq('batch_id', batch.id)
+
+        if (tab === 'routing_decisions') {
+          query = query.eq('routing_decisions.decision', 'approved')
+        } else {
+          query = query.eq('routing_decisions.decision', 'manual_review')
+        }
       }
 
       if (search) {
@@ -390,14 +407,32 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                 </span>
               )}
             </button>
+            <button
+              onClick={() => { setTab('duplicates'); }}
+              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold flex items-center space-x-2 ${
+                tab === 'duplicates'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              <span>Duplicates</span>
+              {stats.duplicates > 0 && (
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  tab === 'duplicates' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-900'
+                }`}>
+                  {stats.duplicates}
+                </span>
+              )}
+            </button>
           </nav>
         </div>
 
         {/* MAIN PANEL CONTENT */}
         <div className="bg-white shadow sm:rounded-lg overflow-hidden">
           <div className="px-4 py-5 sm:px-6 flex justify-between items-center border-b border-gray-200">
-            <h3 className="text-base font-semibold leading-6 text-gray-900">
-              {tab === 'routing_decisions' ? 'Approved Claims' : 'Manual Review Queue'}
+            <h3 className="text-base font-semibold leading-6 text-gray-900 font-display">
+              {tab === 'routing_decisions' ? 'Approved Claims' : 
+               tab === 'manual_review' ? 'Manual Review Queue' : 'Duplicate Claims'}
             </h3>
             <input 
               type="text" 
@@ -415,7 +450,9 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
               </div>
             ) : claims.length === 0 ? (
               <div className="px-4 py-24 text-center text-sm text-gray-500">
-                {tab === 'routing_decisions' ? 'No approved claims found.' : 'No claims require manual review.'}
+                {tab === 'routing_decisions' ? 'No approved claims found.' : 
+                 tab === 'manual_review' ? 'No claims require manual review.' : 
+                 'No duplicate claims detected.'}
               </div>
             ) : (
               <table className="min-w-full divide-y divide-gray-300">
@@ -423,28 +460,61 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                   <tr>
                     <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Patient ID</th>
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Date of Service</th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Anthem Expected</th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Blue Shield Expected</th>
-                    {tab === 'routing_decisions' ? (
+                    {tab === 'duplicates' ? (
                       <>
-                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Recommended</th>
-                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Uplift</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">DOS</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Note</th>
                       </>
                     ) : (
-                      <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900" colSpan={2}>Actions</th>
+                      <>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Date of Service</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Anthem Expected</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Blue Shield Expected</th>
+                        {tab === 'routing_decisions' ? (
+                          <>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Recommended</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Uplift</th>
+                          </>
+                        ) : (
+                          <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900" colSpan={2}>Actions</th>
+                        )}
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Confidence</th>
+                        <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                          <span className="sr-only">Details</span>
+                        </th>
+                      </>
                     )}
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Confidence</th>
-                    <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                      <span className="sr-only">Details</span>
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {claims.map((claim) => {
                     const decision = claim.routing_decisions?.[0]
+                    
+                    if (tab === 'duplicates') {
+                      let formattedDos = '-';
+                      if (claim.dos) {
+                        const parts = claim.dos.split('-');
+                        if (parts.length === 3) {
+                          formattedDos = `${parts[1]}/${parts[2]}/${parts[0].slice(-2)}`;
+                        } else {
+                          formattedDos = claim.dos;
+                        }
+                      }
+                      return (
+                        <tr key={claim.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formattedDos}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm font-semibold text-amber-600">
+                            Previously processed in another batch
+                          </td>
+                        </tr>
+                      )
+                    }
                     
                     let anthemExpectedVal = decision?.anthem_expected ?? null;
                     let bsExpectedVal = decision?.blueshield_expected ?? null;

@@ -35,20 +35,74 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile has no client_id' }, { status: 400 })
     }
 
-    // 4. Get all pending claims for the batch
-    const { data: claims, error: claimsError } = await supabase
+    // 4. Get all claims for the batch
+    const { data: rawClaims, error: rawClaimsError } = await supabase
       .from('claims')
       .select('*')
       .eq('client_id', profile.client_id)
       .eq('batch_id', batch_id)
-      .eq('status', 'pending')
 
-    if (claimsError) {
+    if (rawClaimsError || !rawClaims) {
       return NextResponse.json({ error: 'Failed to fetch claims' }, { status: 500 })
     }
 
-    if (!claims || claims.length === 0) {
-      return NextResponse.json({ message: 'No pending claims found', processed: 0, manual_review: 0 })
+    if (rawClaims.length === 0) {
+      return NextResponse.json({ message: 'No claims found in batch', processed: 0, manual_review: 0 })
+    }
+
+    // 5. Detect patient duplicates in different batches
+    const patientIds = Array.from(new Set(rawClaims.map(c => c.patient_id)))
+    const { data: otherClaims } = await supabase
+      .from('claims')
+      .select('patient_id, dos')
+      .eq('client_id', profile.client_id)
+      .neq('batch_id', batch_id)
+      .in('patient_id', patientIds)
+
+    const duplicateClaimIds: string[] = []
+    const pendingClaims = []
+
+    for (const claim of rawClaims) {
+      if (claim.status === 'duplicate') {
+        continue
+      }
+
+      const isDuplicate = (otherClaims || []).some(
+        oc => oc.patient_id === claim.patient_id && oc.dos === claim.dos
+      )
+
+      if (isDuplicate) {
+        duplicateClaimIds.push(claim.id)
+      } else if (claim.status === 'pending') {
+        pendingClaims.push(claim)
+      }
+    }
+
+    // Update duplicate claims in database
+    if (duplicateClaimIds.length > 0) {
+      const { error: duplicateError } = await supabase
+        .from('claims')
+        .update({ status: 'duplicate' })
+        .in('id', duplicateClaimIds)
+
+      if (duplicateError) {
+        throw new Error(`Failed to update duplicate claims: ${duplicateError.message}`)
+      }
+    }
+
+    if (pendingClaims.length === 0) {
+      // All claims are duplicates or already processed
+      await supabase
+        .from('batches')
+        .update({
+          status: 'open',
+          approved_count: 0,
+          manual_review_count: 0,
+          total_uplift: 0
+        })
+        .eq('id', batch_id)
+
+      return NextResponse.json({ message: 'No pending claims to process', processed: 0, manual_review: 0, total: rawClaims.length })
     }
 
     let processedCount = 0
@@ -57,8 +111,8 @@ export async function POST(request: NextRequest) {
 
     // Process in chunks of 50
     const chunkSize = 50
-    for (let i = 0; i < claims.length; i += chunkSize) {
-      const chunk = claims.slice(i, i + chunkSize)
+    for (let i = 0; i < pendingClaims.length; i += chunkSize) {
+      const chunk = pendingClaims.slice(i, i + chunkSize)
       const routingDecisionsToInsert = []
       const claimIdsToUpdate = []
 
@@ -128,7 +182,7 @@ export async function POST(request: NextRequest) {
       message: 'Processing complete',
       processed: processedCount,
       manual_review: manualReviewCount,
-      total: claims.length
+      total: rawClaims.length
     })
 
   } catch {

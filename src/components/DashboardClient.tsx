@@ -157,17 +157,33 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
 
         if (batchError || !batch) throw new Error()
 
-        const claimsToInsert = rows.map(row => ({
-          batch_id: batch.id,
-          patient_id: row.patient_id,
-          alpha_prefix: row.alpha_prefix,
-          dos: row.dos,
-          product_type: row.product_type,
-          payer_name: row.payer_name,
-          charge_amount: parseFloat(row.charge_amount) || 0,
-          client_id: clientId,
-          status: 'pending'
-        }))
+        // Query to check existing patient_id + dos for this client_id
+        const patientIds = Array.from(new Set(rows.map(r => r.patient_id)))
+        const { data: existingClaims, error: checkError } = await supabase
+          .from('claims')
+          .select('patient_id, dos')
+          .eq('client_id', clientId)
+          .in('patient_id', patientIds)
+
+        if (checkError) throw new Error()
+
+        const claimsToInsert = rows.map(row => {
+          const isDuplicate = (existingClaims || []).some(
+            ec => ec.patient_id === row.patient_id && ec.dos === row.dos
+          )
+
+          return {
+            batch_id: batch.id,
+            patient_id: row.patient_id,
+            alpha_prefix: row.alpha_prefix,
+            dos: row.dos,
+            product_type: row.product_type,
+            payer_name: row.payer_name,
+            charge_amount: parseFloat(row.charge_amount) || 0,
+            client_id: clientId,
+            status: isDuplicate ? 'duplicate' : 'pending'
+          }
+        })
 
         // Insert Claims
         const { error: insertError } = await supabase
