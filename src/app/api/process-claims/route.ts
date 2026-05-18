@@ -32,6 +32,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile has no client_id' }, { status: 400 })
     }
 
+    // STEP 1 - Bulk fetch all needed data upfront before processing any claims
+    // Fetch all active prefixes
+    const { data: activePrefixes } = await supabase
+      .from('alpha_prefix_reference')
+      .select('*')
+      .eq('is_active', true)
+
+    // Fetch all client contracts
+    const { data: clientContracts } = await supabase
+      .from('plan_contracts')
+      .select('*')
+      .eq('client_id', profile.client_id)
+
+    const prefixMap = new Map<string, Record<string, unknown>>()
+    if (activePrefixes) {
+      activePrefixes.forEach(p => {
+        if (p.prefix) {
+          prefixMap.set(p.prefix, p as unknown as Record<string, unknown>)
+        }
+      })
+    }
+
+    const contractMap = new Map<string, Record<string, unknown>>()
+    if (clientContracts) {
+      clientContracts.forEach(c => {
+        if (c.plan_name && c.product_type) {
+          contractMap.set(`${c.plan_name}+${c.product_type}`, c as unknown as Record<string, unknown>)
+        }
+      })
+    }
+
     if (claim_id) {
       // Fetch that single claim
       const { data: claim, error: fetchError } = await supabase
@@ -56,7 +87,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Process claim
-      const decisionResult = await processClain(claim, supabase)
+      const decisionResult = await processClain(claim, supabase, prefixMap, contractMap)
 
       // Delete any existing routing decision for safety
       await supabase
@@ -205,60 +236,57 @@ export async function POST(request: NextRequest) {
     let manualReviewCount = 0
     let totalUplift = 0
 
-    // Process in chunks of 50
-    const chunkSize = 50
-    for (let i = 0; i < pendingClaims.length; i += chunkSize) {
-      const chunk = pendingClaims.slice(i, i + chunkSize)
-      const routingDecisionsToInsert = []
-      const claimIdsToUpdate = []
+    const decisionsToInsert: Record<string, unknown>[] = []
+    const processedClaimIds: string[] = []
 
-      for (const claim of chunk) {
-        const decisionResult = await processClain(claim, supabase)
-        
-        routingDecisionsToInsert.push({
-          batch_id,
-          claim_id: claim.id,
-          decision: decisionResult.decision,
-          reason: decisionResult.reason,
-          recommended_plan: decisionResult.recommended_plan || null,
-          alternate_plan: decisionResult.alternate_plan || null,
-          uplift_amount: decisionResult.uplift_amount || null,
-          anthem_expected: decisionResult.anthem_expected || null,
-          blueshield_expected: decisionResult.blueshield_expected || null,
-          confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
-        })
+    // STEP 4 - Bulk process all claims in memory after the initial bulk fetches
+    for (const claim of pendingClaims) {
+      const decisionResult = await processClain(claim, supabase, prefixMap, contractMap)
+      
+      decisionsToInsert.push({
+        batch_id,
+        claim_id: claim.id,
+        decision: decisionResult.decision,
+        reason: decisionResult.reason,
+        recommended_plan: decisionResult.recommended_plan || null,
+        alternate_plan: decisionResult.alternate_plan || null,
+        uplift_amount: decisionResult.uplift_amount || null,
+        anthem_expected: decisionResult.anthem_expected || null,
+        blueshield_expected: decisionResult.blueshield_expected || null,
+        confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
+      })
 
-        claimIdsToUpdate.push(claim.id)
+      processedClaimIds.push(claim.id)
 
-        if (decisionResult.decision === 'manual_review') {
-          manualReviewCount++
-        } else {
-          processedCount++
-        }
-        if (decisionResult.uplift_amount) {
-          totalUplift += decisionResult.uplift_amount
-        }
+      if (decisionResult.decision === 'manual_review') {
+        manualReviewCount++
+      } else {
+        processedCount++
       }
-
-      if (routingDecisionsToInsert.length > 0) {
-        const { error: insertError } = await supabase
-          .from('routing_decisions')
-          .insert(routingDecisionsToInsert)
-
-        if (insertError) {
-          throw new Error(`Failed to insert routing decisions: ${insertError.message}`)
-        }
+      if (decisionResult.uplift_amount) {
+        totalUplift += decisionResult.uplift_amount
       }
+    }
 
-      if (claimIdsToUpdate.length > 0) {
-        const { error: updateError } = await supabase
-          .from('claims')
-          .update({ status: 'processed' })
-          .in('id', claimIdsToUpdate)
+    // STEP 3 - Bulk insert routing decisions & bulk update claim statuses
+    if (decisionsToInsert.length > 0) {
+      const { error: insertError } = await supabase
+        .from('routing_decisions')
+        .insert(decisionsToInsert)
 
-        if (updateError) {
-          throw new Error(`Failed to update claims status: ${updateError.message}`)
-        }
+      if (insertError) {
+        throw new Error(`Failed to insert routing decisions: ${insertError.message}`)
+      }
+    }
+
+    if (processedClaimIds.length > 0) {
+      const { error: updateError } = await supabase
+        .from('claims')
+        .update({ status: 'processed' })
+        .in('id', processedClaimIds)
+
+      if (updateError) {
+        throw new Error(`Failed to update claims status: ${updateError.message}`)
       }
     }
 
