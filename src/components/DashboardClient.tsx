@@ -74,6 +74,11 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
   
   const router = useRouter()
   const supabase = createClient()
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const handleStartRename = (batchId: string, currentName: string) => {
     setEditingBatchId(batchId)
@@ -267,21 +272,7 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
         if (batchError || !batch) throw new Error()
         createdBatchId = batch.id
 
-        // Query to check existing patient_id + dos for this client_id
-        const patientIds = Array.from(new Set(rows.map(r => r.patient_id)))
-        const { data: existingClaims, error: checkError } = await supabase
-          .from('claims')
-          .select('patient_id, dos')
-          .eq('client_id', clientId)
-          .in('patient_id', patientIds)
-
-        if (checkError) throw new Error()
-
         const claimsToInsert = rows.map(row => {
-          const isDuplicate = (existingClaims || []).some(
-            ec => ec.patient_id === row.patient_id && ec.dos === row.dos
-          )
-
           return {
             batch_id: batch.id,
             patient_id: row.patient_id,
@@ -291,7 +282,7 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
             payer_name: row.payer_name,
             charge_amount: parseFloat(row.charge_amount) || 0,
             client_id: clientId,
-            status: isDuplicate ? 'duplicate' : 'pending'
+            status: 'pending'
           }
         })
 
@@ -587,7 +578,7 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
                         </div>
                       )}
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {new Date(batch.created_at).toLocaleDateString()} at {new Date(batch.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {isMounted ? `${new Date(batch.created_at).toLocaleDateString()} at ${new Date(batch.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
                       </p>
                       {isError && batch.processing_error && (
                         <div className="mt-2 text-xs font-semibold text-red-600 bg-red-50 p-2 rounded border border-red-100">
