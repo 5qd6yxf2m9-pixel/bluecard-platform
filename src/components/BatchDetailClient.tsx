@@ -167,6 +167,7 @@ export function BatchDetailClient({ batch, tableData, contracts }: BatchDetailCl
                   <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Patient ID</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Date of Service</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Anthem Expected</th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Blue Shield Expected</th>
@@ -222,8 +223,35 @@ export function BatchDetailClient({ batch, tableData, contracts }: BatchDetailCl
                   return (
                     <tr key={claim.id}>
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
+                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
+                      {(() => {
+                        let formattedDos = '-';
+                        let dosClass = 'text-gray-500';
+                        if (claim.dos) {
+                          const parts = claim.dos.split('-');
+                          if (parts.length === 3) {
+                            formattedDos = `${parts[1]}/${parts[2]}/${parts[0]}`;
+                          } else {
+                            formattedDos = claim.dos;
+                          }
+
+                          const parsedDos = new Date(claim.dos);
+                          if (!isNaN(parsedDos.getTime())) {
+                            const today = new Date();
+                            const msPerDay = 24 * 60 * 60 * 1000;
+                            const diffDays = (today.getTime() - parsedDos.getTime()) / msPerDay;
+                            if (diffDays > 365) {
+                              dosClass = 'text-yellow-600 font-semibold';
+                            }
+                          }
+                        }
+                        return (
+                          <td className={`whitespace-nowrap px-3 py-4 text-sm ${dosClass}`}>
+                            {formattedDos}
+                          </td>
+                        );
+                      })()}
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
                       <td className={`whitespace-nowrap px-3 py-4 text-sm ${anthemClass}`}>{anthemExpectedVal !== null ? formatCurrency(anthemExpectedVal) : '-'}</td>
                       <td className={`whitespace-nowrap px-3 py-4 text-sm ${bsClass}`}>{bsExpectedVal !== null ? formatCurrency(bsExpectedVal) : '-'}</td>
