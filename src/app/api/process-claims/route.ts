@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { processClain } from '@/lib/rulesEngine'
 
+interface RoutingDecisionInsert {
+  batch_id: string
+  claim_id: string
+  decision: string
+  reason: string
+  recommended_plan: string | null
+  alternate_plan: string | null
+  uplift_amount: number | null
+  anthem_expected: number | null
+  blueshield_expected: number | null
+  confidence_score: number | null
+  financial_tier: string | null
+  manual_review_code: string | null
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient()
@@ -109,8 +124,8 @@ export async function POST(request: NextRequest) {
           anthem_expected: decisionResult.anthem_expected || null,
           blueshield_expected: decisionResult.blueshield_expected || null,
           confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
-          financial_tier: decisionResult.financial_tier || null,
-          manual_review_code: decisionResult.manual_review_code || null,
+          financial_tier: (decisionResult.financial_tier as string | undefined) || null,
+          manual_review_code: (decisionResult.manual_review_code as string | undefined) || null,
         })
 
       if (insertError) {
@@ -238,7 +253,7 @@ export async function POST(request: NextRequest) {
     let manualReviewCount = 0
     let totalUplift = 0
 
-    const decisionsToInsert: Record<string, unknown>[] = []
+    const decisionsToInsert: RoutingDecisionInsert[] = []
     const processedClaimIds: string[] = []
 
     // STEP 4 - Bulk process all claims in memory after the initial bulk fetches
@@ -256,8 +271,8 @@ export async function POST(request: NextRequest) {
         anthem_expected: decisionResult.anthem_expected || null,
         blueshield_expected: decisionResult.blueshield_expected || null,
         confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
-        financial_tier: decisionResult.financial_tier || null,
-        manual_review_code: decisionResult.manual_review_code || null,
+        financial_tier: (decisionResult.financial_tier as string | undefined) || null,
+        manual_review_code: (decisionResult.manual_review_code as string | undefined) || null,
       })
 
       processedClaimIds.push(claim.id)
