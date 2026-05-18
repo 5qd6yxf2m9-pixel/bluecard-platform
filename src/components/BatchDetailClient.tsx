@@ -225,17 +225,22 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
   const getReasonLines = (reason: string) => {
     if (!reason) return []
     
+    let lines: string[] = []
     if (reason.includes('|')) {
-      return reason.split('|').map(line => line.trim()).filter(Boolean)
+      lines = reason.split('|').map(line => line.trim()).filter(Boolean)
+    } else {
+      // Fallback splitting logic for older records
+      let parsed = reason
+      parsed = parsed.replace(/- Medium confidence/g, '|Medium confidence')
+      parsed = parsed.replace(/Warning:/g, '|Warning:')
+      parsed = parsed.split('. ').join('.|')
+      lines = parsed.split('|').map(line => line.trim()).filter(Boolean)
     }
 
-    // Fallback splitting logic for older records
-    let parsed = reason
-    parsed = parsed.replace(/- Medium confidence/g, '|Medium confidence')
-    parsed = parsed.replace(/Warning:/g, '|Warning:')
-    parsed = parsed.split('. ').join('.|')
-    
-    return parsed.split('|').map(line => line.trim()).filter(Boolean)
+    // Always sort lines that start with "Warning:" to the very end
+    const warnings = lines.filter(line => line.startsWith('Warning:'))
+    const nonWarnings = lines.filter(line => !line.startsWith('Warning:'))
+    return [...nonWarnings, ...warnings]
   }
 
   const renderConfidenceBadge = (claim: ClaimWithDecision) => {

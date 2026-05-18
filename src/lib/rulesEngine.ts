@@ -121,16 +121,20 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
     const finalDecision = score >= 60 ? 'approved' : 'manual_review'
     
     const reasonParts: string[] = []
+    
+    // 1. Decision reason (always first)
     reasonParts.push(`Only one contracted plan found: ${contracts[0].plan_name}`)
     
-    if (ageWarning) {
-      reasonParts.push(ageWarning)
-    }
-
+    // 2. Confidence note (always second)
     if (score < 60) {
-      reasonParts.unshift(`Low confidence (${score}/100)`)
+      reasonParts.push(`Low confidence (${score}/100)`)
     } else if (score >= 60 && score <= 84) {
       reasonParts.push(`Medium confidence verify before billing`)
+    }
+
+    // 3. Warning messages (always last)
+    if (ageWarning) {
+      reasonParts.push(ageWarning)
     }
 
     const finalReason = reasonParts.join('|')
@@ -172,16 +176,20 @@ export async function processClain(claim: Claim, supabase: SupabaseClient): Prom
   const finalDecision = score >= 60 ? 'approved' : 'manual_review'
   
   const reasonParts: string[] = []
+  
+  // 1. Decision reason (always first)
   reasonParts.push(`Routed to ${bestPlan.plan_name} for highest reimbursement`)
   
-  if (ageWarning) {
-    reasonParts.push(ageWarning)
-  }
-
+  // 2. Confidence note (always second)
   if (score < 60) {
-    reasonParts.unshift(`Low confidence (${score}/100)`)
+    reasonParts.push(`Low confidence (${score}/100)`)
   } else if (score >= 60 && score <= 84) {
     reasonParts.push(`Medium confidence verify before billing`)
+  }
+
+  // 3. Warning messages (always last)
+  if (ageWarning) {
+    reasonParts.push(ageWarning)
   }
 
   const finalReason = reasonParts.join('|')
