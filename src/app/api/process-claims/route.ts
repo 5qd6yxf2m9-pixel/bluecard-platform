@@ -333,13 +333,17 @@ export async function POST(request: NextRequest) {
     console.error('STEP 4: bulk insert decisions')
     // STEP 3 - Bulk insert routing decisions & bulk update claim statuses
     if (decisionsToInsert.length > 0) {
-      const { error: insertError } = await supabase
-        .from('routing_decisions')
-        .insert(decisionsToInsert)
-
-      if (insertError) {
-        console.error('[Error Step: bulk insert] Failed to insert routing decisions:', insertError.message)
-        throw new Error(`Failed to insert routing decisions: ${insertError.message}`)
+      const chunkSize = 100
+      for (let i = 0; i < decisionsToInsert.length; i += chunkSize) {
+        const chunk = decisionsToInsert.slice(i, i + chunkSize)
+        if (chunk.length === 0) continue
+        const { error: insertError } = await supabase
+          .from('routing_decisions')
+          .insert(chunk)
+        if (insertError) {
+          console.error('[Error Step: bulk insert] Failed to insert routing decisions chunk:', insertError.message)
+          throw new Error('Failed to insert routing decisions chunk: ' + insertError.message)
+        }
       }
     }
 
