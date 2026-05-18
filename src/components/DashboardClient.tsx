@@ -178,7 +178,7 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
 
         rows.forEach(row => {
           if (row.dos) {
-            const d = new Date(row.dos)
+            const d = new Date(row.dos.includes('T') ? row.dos : `${row.dos}T12:00:00`)
             if (!isNaN(d.getTime())) {
               if (!earliestDate || d < earliestDate) earliestDate = d
               if (!latestDate || d > latestDate) latestDate = d
