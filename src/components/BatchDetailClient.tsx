@@ -1,0 +1,321 @@
+'use client'
+
+import { useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { ClaimWithDecision, PlanContract, BatchData } from '@/components/DashboardClient'
+
+interface BatchDetailClientProps {
+  batch: BatchData;
+  tableData: ClaimWithDecision[];
+  contracts: PlanContract[];
+}
+
+export function BatchDetailClient({ batch, tableData, contracts }: BatchDetailClientProps) {
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const router = useRouter()
+  const supabase = createClient()
+  const itemsPerPage = 50
+
+  const filteredData = tableData.filter(claim => 
+    claim.patient_id.toLowerCase().includes(search.toLowerCase()) || 
+    claim.alpha_prefix.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage)
+  const paginatedData = filteredData.slice((page - 1) * itemsPerPage, page * itemsPerPage)
+
+  const manualReviewClaims = tableData.filter(claim => claim.routing_decisions?.[0]?.decision === 'manual_review')
+
+  const handleManualRoute = async (decisionId: string, plan: string, overrideReason?: string) => {
+    try {
+      const { error: updateError } = await supabase
+        .from('routing_decisions')
+        .update({ 
+          decision: 'approved', 
+          recommended_plan: plan, 
+          reason: overrideReason || 'Manually routed by billing staff' 
+        })
+        .eq('id', decisionId)
+      
+      if (updateError) throw new Error()
+      
+      router.refresh()
+    } catch {
+      alert('Failed to update routing decision.')
+    }
+  }
+
+  const markComplete = async () => {
+    try {
+      const { error } = await supabase
+        .from('batches')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', batch.id)
+      
+      if (error) throw new Error()
+      router.refresh()
+    } catch {
+      alert('Failed to mark batch as complete.')
+    }
+  }
+
+  const exportResults = () => {
+    const headers = ['Patient ID', 'Prefix', 'Product Type', 'Charge Amount', 'Recommended Plan', 'Alternate Plan', 'Uplift Amount', 'Decision', 'Reason']
+    const rows = tableData.map(claim => {
+      const d = claim.routing_decisions[0]
+      return [
+        claim.patient_id,
+        claim.alpha_prefix,
+        claim.product_type,
+        claim.charge_amount,
+        d?.recommended_plan || '',
+        d?.alternate_plan || '',
+        d?.uplift_amount || '',
+        d?.decision || claim.status,
+        d?.reason || ''
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')
+    })
+    
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement("a")
+    link.setAttribute("href", encodedUri)
+    link.setAttribute("download", `batch_results_${batch.id}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val)
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <header className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Link href="/dashboard" className="text-gray-500 hover:text-gray-900">
+              &larr; Back
+            </Link>
+            <h1 className="text-xl font-bold text-gray-900">{batch.name}</h1>
+            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
+              batch.status === 'completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
+              batch.status === 'open' ? 'bg-blue-50 text-blue-700 ring-blue-600/20' :
+              'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
+            }`}>
+              {batch.status}
+            </span>
+          </div>
+          <div className="space-x-3">
+            <button onClick={exportResults} className="text-sm font-medium text-gray-700 hover:text-gray-900 px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
+              Export Results
+            </button>
+            {batch.status !== 'completed' && (
+              <button onClick={markComplete} className="text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-2 border border-transparent rounded-md shadow-sm">
+                Mark Batch Complete
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
+        
+        {/* STATS */}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
+          <div className="bg-white overflow-hidden shadow rounded-lg px-4 py-5 sm:p-6">
+            <dt className="truncate text-sm font-medium text-gray-500">Total Claims</dt>
+            <dd className="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{batch.total_claims}</dd>
+          </div>
+          <div className="bg-white overflow-hidden shadow rounded-lg px-4 py-5 sm:p-6">
+            <dt className="truncate text-sm font-medium text-gray-500">Approved Routings</dt>
+            <dd className="mt-1 text-3xl font-semibold tracking-tight text-green-600">{batch.approved_count}</dd>
+          </div>
+          <div className="bg-white overflow-hidden shadow rounded-lg px-4 py-5 sm:p-6">
+            <dt className="truncate text-sm font-medium text-gray-500">Manual Review</dt>
+            <dd className="mt-1 text-3xl font-semibold tracking-tight text-yellow-600">{batch.manual_review_count}</dd>
+          </div>
+          <div className="bg-white overflow-hidden shadow rounded-lg px-4 py-5 sm:p-6">
+            <dt className="truncate text-sm font-medium text-gray-500">Total Estimated Uplift</dt>
+            <dd className="mt-1 text-3xl font-semibold tracking-tight text-blue-600">{formatCurrency(batch.total_uplift)}</dd>
+          </div>
+        </div>
+
+        {/* ROUTING DECISIONS TABLE */}
+        <div className="bg-white shadow sm:rounded-lg overflow-hidden">
+          <div className="px-4 py-5 sm:px-6 flex justify-between items-center border-b border-gray-200">
+            <h3 className="text-base font-semibold leading-6 text-gray-900">Routing Decisions</h3>
+            <input 
+              type="text" 
+              placeholder="Search ID or prefix..." 
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="block w-64 rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 px-3"
+            />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-300">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Patient ID</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Recommended Plan</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Uplift</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Decision</th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {paginatedData.map((claim) => {
+                  const decision = claim.routing_decisions?.[0]
+                  return (
+                    <tr key={claim.id}>
+                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{decision?.recommended_plan || '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{decision?.uplift_amount ? formatCurrency(decision.uplift_amount) : '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        {decision ? (
+                          <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
+                            decision.decision === 'approved' 
+                              ? 'bg-green-50 text-green-700 ring-green-600/20' 
+                              : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
+                          }`}>
+                            {decision.decision}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                            {claim.status}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-4 text-sm text-gray-500 whitespace-normal">{decision?.reason || '-'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
+            <div className="flex flex-1 justify-between sm:hidden">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Previous</button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Next</button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{((page - 1) * itemsPerPage) + 1}</span> to <span className="font-medium">{Math.min(page * itemsPerPage, filteredData.length)}</span> of <span className="font-medium">{filteredData.length}</span> results
+                </p>
+              </div>
+              <div>
+                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">
+                    <span className="sr-only">Previous</span>
+                    &larr;
+                  </button>
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">
+                    <span className="sr-only">Next</span>
+                    &rarr;
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* MANUAL REVIEW QUEUE */}
+        <div className="bg-white shadow sm:rounded-lg overflow-hidden">
+          <div className="px-4 py-5 sm:px-6">
+            <h3 className="text-base font-semibold leading-6 text-gray-900">Manual Review Queue</h3>
+          </div>
+          <div className="border-t border-gray-200">
+            {manualReviewClaims.length === 0 ? (
+              <div className="px-4 py-12 text-center text-sm text-gray-500">
+                No claims require manual review.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-300">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Patient ID</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
+                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Reason</th>
+                      <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900 sm:pr-6">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {manualReviewClaims.map((claim) => {
+                      const decision = claim.routing_decisions[0]
+                      const isPrefixIssue = decision.reason.toLowerCase().includes('prefix')
+                      const isMAorFEP = decision.reason.includes('Medicare Advantage') || decision.reason.includes('FEP')
+                      
+                      let anthemExpected = null
+                      let blueShieldExpected = null
+
+                      if (isPrefixIssue) {
+                        const anthemContract = contracts.find(c => c.product_type === claim.product_type && c.plan_name === 'Anthem')
+                        const bsContract = contracts.find(c => c.product_type === claim.product_type && c.plan_name === 'Blue Shield')
+                        if (anthemContract) anthemExpected = claim.charge_amount * anthemContract.reimbursement_rate
+                        if (bsContract) blueShieldExpected = claim.charge_amount * bsContract.reimbursement_rate
+                      }
+
+                      return (
+                        <tr key={claim.id}>
+                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
+                          <td className="px-3 py-4 text-sm text-gray-500 whitespace-normal">
+                            {decision.reason}
+                            {isPrefixIssue && <p className="mt-1 text-xs text-red-600 font-medium">Note: Prefix not recognized. Verify member eligibility and select the correct local plan.</p>}
+                            {isMAorFEP && <p className="mt-1 text-xs text-yellow-600 font-medium">Note: Medicare Advantage or FEP products are billed outside standard BlueCard routing.</p>}
+                          </td>
+                          <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
+                            {isMAorFEP ? (
+                              <button
+                                onClick={() => handleManualRoute(decision.id, '-', 'MA/FEP claim billed separately outside BlueCard routing')}
+                                className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-100 ring-1 ring-inset ring-gray-300"
+                              >
+                                Mark as Billed Separately
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleManualRoute(decision.id, 'Anthem')}
+                                  className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1.5 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-100"
+                                >
+                                  Route to Anthem {anthemExpected !== null ? `(${formatCurrency(anthemExpected)} expected)` : ''}
+                                </button>
+                                <button
+                                  onClick={() => handleManualRoute(decision.id, 'Blue Shield')}
+                                  className="inline-flex items-center rounded-md bg-indigo-50 px-2.5 py-1.5 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
+                                >
+                                  Route to Blue Shield {blueShieldExpected !== null ? `(${formatCurrency(blueShieldExpected)} expected)` : ''}
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+      </main>
+    </div>
+  )
+}

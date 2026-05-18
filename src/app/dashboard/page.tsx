@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { DashboardClient, ClaimWithDecision, DashboardStats, PlanContract } from '@/components/DashboardClient'
+import { DashboardClient, BatchData } from '@/components/DashboardClient'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -18,58 +18,24 @@ export default async function DashboardPage() {
     .single()
 
   if (!profile?.client_id) {
-    // Handle edge case where profile doesn't exist
     return <div className="p-8 text-red-500">Error: Profile or client_id not found.</div>
   }
 
-  // Fetch claims and their routing decisions
-  const { data: claimsData } = await supabase
-    .from('claims')
-    .select('*, routing_decisions(*)')
+  // Fetch batches
+  const { data: batchesData } = await supabase
+    .from('batches')
+    .select('*')
     .eq('client_id', profile.client_id)
     .order('created_at', { ascending: false })
 
-  const tableData = (claimsData || []) as unknown as ClaimWithDecision[]
-
-  // Fetch plan contracts for the client
-  const { data: contractsData } = await supabase
-    .from('plan_contracts')
-    .select('*')
-    .eq('client_id', profile.client_id)
-
-  const contracts = (contractsData || []) as unknown as PlanContract[]
-
-  // Calculate Stats
-  const stats: DashboardStats = {
-    totalProcessed: 0,
-    approvedCount: 0,
-    manualReviewCount: 0,
-    totalUplift: 0,
-  }
-
-  tableData.forEach((claim) => {
-    if (claim.routing_decisions && claim.routing_decisions.length > 0) {
-      stats.totalProcessed++
-      const decision = claim.routing_decisions[0]
-      if (decision.decision === 'approved') {
-        stats.approvedCount++
-      } else if (decision.decision === 'manual_review') {
-        stats.manualReviewCount++
-      }
-      if (decision.uplift_amount) {
-        stats.totalUplift += decision.uplift_amount
-      }
-    }
-  })
+  const batches = (batchesData || []) as unknown as BatchData[]
 
   return (
     <DashboardClient 
       userEmail={user.email || ''} 
       clientId={profile.client_id}
-      stats={stats}
-      tableData={tableData}
+      batches={batches}
       role={profile.role}
-      contracts={contracts}
     />
   )
 }

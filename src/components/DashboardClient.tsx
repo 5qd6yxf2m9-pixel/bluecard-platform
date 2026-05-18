@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export interface RoutingDecisionData {
   id: string;
@@ -25,13 +26,6 @@ export interface ClaimWithDecision {
   routing_decisions: RoutingDecisionData[];
 }
 
-export interface DashboardStats {
-  totalProcessed: number;
-  approvedCount: number;
-  manualReviewCount: number;
-  totalUplift: number;
-}
-
 export interface PlanContract {
   id?: string;
   client_id: string;
@@ -40,41 +34,32 @@ export interface PlanContract {
   reimbursement_rate: number;
 }
 
+export interface BatchData {
+  id: string;
+  client_id: string;
+  name: string;
+  status: string;
+  total_claims: number;
+  approved_count: number;
+  manual_review_count: number;
+  total_uplift: number;
+  created_at: string;
+  completed_at: string | null;
+}
+
 interface DashboardClientProps {
   userEmail: string;
   clientId: string;
-  stats: DashboardStats;
-  tableData: ClaimWithDecision[];
+  batches: BatchData[];
   role?: string;
-  contracts?: PlanContract[];
 }
 
-export function DashboardClient({ userEmail, clientId, stats, tableData, role, contracts = [] }: DashboardClientProps) {
+export function DashboardClient({ userEmail, clientId, batches, role }: DashboardClientProps) {
+  const [showUpload, setShowUpload] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
-
-  const manualReviewClaims = tableData.filter(claim => claim.routing_decisions?.[0]?.decision === 'manual_review')
-
-  const handleManualRoute = async (decisionId: string, plan: string, overrideReason?: string) => {
-    try {
-      const { error: updateError } = await supabase
-        .from('routing_decisions')
-        .update({ 
-          decision: 'approved', 
-          recommended_plan: plan, 
-          reason: overrideReason || 'Manually routed by billing staff' 
-        })
-        .eq('id', decisionId)
-      
-      if (updateError) throw new Error()
-      
-      router.refresh()
-    } catch {
-      alert('Failed to update routing decision.')
-    }
-  }
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -89,22 +74,16 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role, c
     reader.onload = async (e) => {
       try {
         const text = e.target?.result as string
-        if (!text) {
-          throw new Error()
-        }
+        if (!text) throw new Error()
 
         const lines = text.split('\n').filter(line => line.trim() !== '')
-        if (lines.length < 2) {
-          throw new Error()
-        }
+        if (lines.length < 2) throw new Error()
 
         const headers = lines[0].split(',').map(h => h.trim())
         const expectedHeaders = ['patient_id', 'alpha_prefix', 'dos', 'product_type', 'payer_name', 'charge_amount']
         
         for (const expected of expectedHeaders) {
-          if (!headers.includes(expected)) {
-            throw new Error()
-          }
+          if (!headers.includes(expected)) throw new Error()
         }
 
         const rows = lines.slice(1).map(line => {
@@ -116,7 +95,23 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role, c
           return rowData
         })
 
+        // 1. Create Batch
+        const batchName = `Upload - ${new Date().toLocaleString()}`
+        const { data: batch, error: batchError } = await supabase
+          .from('batches')
+          .insert({
+            client_id: clientId,
+            name: batchName,
+            status: 'processing',
+            total_claims: rows.length
+          })
+          .select()
+          .single()
+
+        if (batchError || !batch) throw new Error()
+
         const claimsToInsert = rows.map(row => ({
+          batch_id: batch.id,
           patient_id: row.patient_id,
           alpha_prefix: row.alpha_prefix,
           dos: row.dos,
@@ -127,18 +122,23 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role, c
           status: 'pending'
         }))
 
+        // Insert Claims
         const { error: insertError } = await supabase
           .from('claims')
           .insert(claimsToInsert)
 
         if (insertError) throw new Error()
 
-        // Process claims
-        const response = await fetch('/api/process-claims', { method: 'POST' })
-        if (!response.ok) {
-          throw new Error()
-        }
+        // Call API
+        const response = await fetch('/api/process-claims', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ batch_id: batch.id })
+        })
 
+        if (!response.ok) throw new Error()
+
+        setShowUpload(false)
         router.refresh()
       } catch {
         setError('An error occurred during upload or processing. Please check the file format.')
@@ -146,12 +146,10 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role, c
         setUploading(false)
       }
     }
-
     reader.onerror = () => {
       setError('Failed to read the file.')
       setUploading(false)
     }
-
     reader.readAsText(file)
   }
 
@@ -166,14 +164,10 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role, c
     }
   }, [uploading]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-  }
-
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault()
+  
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      void processFile(e.target.files[0])
-    }
+    if (e.target.files && e.target.files.length > 0) void processFile(e.target.files[0])
   }
 
   const formatCurrency = (val: number) => {
@@ -194,10 +188,7 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role, c
           </div>
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-600">{userEmail}</span>
-            <button
-              onClick={handleSignOut}
-              className="text-sm text-indigo-600 hover:text-indigo-900 font-medium"
-            >
+            <button onClick={handleSignOut} className="text-sm text-indigo-600 hover:text-indigo-900 font-medium">
               Sign out
             </button>
           </div>
@@ -206,220 +197,87 @@ export function DashboardClient({ userEmail, clientId, stats, tableData, role, c
 
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
         
-        {/* STATS BAR */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
-          <div className="bg-white overflow-hidden shadow rounded-lg px-4 py-5 sm:p-6">
-            <dt className="truncate text-sm font-medium text-gray-500">Total Claims Processed</dt>
-            <dd className="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{stats.totalProcessed}</dd>
-          </div>
-          <div className="bg-white overflow-hidden shadow rounded-lg px-4 py-5 sm:p-6">
-            <dt className="truncate text-sm font-medium text-gray-500">Approved Routings</dt>
-            <dd className="mt-1 text-3xl font-semibold tracking-tight text-green-600">{stats.approvedCount}</dd>
-          </div>
-          <div className="bg-white overflow-hidden shadow rounded-lg px-4 py-5 sm:p-6">
-            <dt className="truncate text-sm font-medium text-gray-500">Manual Review</dt>
-            <dd className="mt-1 text-3xl font-semibold tracking-tight text-yellow-600">{stats.manualReviewCount}</dd>
-          </div>
-          <div className="bg-white overflow-hidden shadow rounded-lg px-4 py-5 sm:p-6">
-            <dt className="truncate text-sm font-medium text-gray-500">Total Estimated Uplift</dt>
-            <dd className="mt-1 text-3xl font-semibold tracking-tight text-blue-600">{formatCurrency(stats.totalUplift)}</dd>
-          </div>
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-900">Batches</h2>
+          <button
+            onClick={() => setShowUpload(!showUpload)}
+            className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+          >
+            {showUpload ? 'Cancel' : 'New Upload'}
+          </button>
         </div>
 
-        {/* UPLOAD SECTION */}
-        <div className="bg-white shadow sm:rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-base font-semibold leading-6 text-gray-900">Upload Claims</h3>
-            <div className="mt-2 max-w-xl text-sm text-gray-500">
-              <p>Drag and drop a CSV file here, or click to browse. Processing starts automatically.</p>
-            </div>
-            <div 
-              onDrop={onDrop}
-              onDragOver={onDragOver}
-              className={`mt-4 flex justify-center rounded-lg border border-dashed border-gray-900/25 px-6 py-10 ${uploading ? 'opacity-50' : 'hover:bg-gray-50 transition-colors'}`}
-            >
-              <div className="text-center">
-                <svg className="mx-auto h-12 w-12 text-gray-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M11.47 2.47a.75.75 0 011.06 0l4.5 4.5a.75.75 0 01-1.06 1.06l-3.22-3.22V16.5a.75.75 0 01-1.5 0V4.81L8.03 8.03a.75.75 0 01-1.06-1.06l4.5-4.5zM3 15.75a.75.75 0 01.75.75v2.25a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5V16.5a.75.75 0 011.5 0v2.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V16.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                </svg>
-                <div className="mt-4 flex text-sm leading-6 text-gray-600 justify-center">
-                  <label
-                    htmlFor="file-upload"
-                    className="relative cursor-pointer rounded-md bg-white font-semibold text-indigo-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-600 focus-within:ring-offset-2 hover:text-indigo-500"
-                  >
+        {showUpload && (
+          <div className="bg-white shadow sm:rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <h3 className="text-base font-semibold leading-6 text-gray-900">Upload Claims</h3>
+              <div className="mt-2 max-w-xl text-sm text-gray-500">
+                <p>Drag and drop a CSV file here, or click to browse. Processing starts automatically.</p>
+              </div>
+              <div 
+                onDrop={onDrop}
+                onDragOver={onDragOver}
+                className={`mt-4 flex justify-center rounded-lg border border-dashed border-gray-900/25 px-6 py-10 ${uploading ? 'opacity-50' : 'hover:bg-gray-50 transition-colors'}`}
+              >
+                <div className="text-center">
+                  <label className="relative cursor-pointer rounded-md bg-white font-semibold text-indigo-600 focus-within:outline-none hover:text-indigo-500">
                     <span>Upload a file</span>
-                    <input id="file-upload" name="file-upload" type="file" className="sr-only" accept=".csv" onChange={handleFileChange} disabled={uploading} />
+                    <input type="file" className="sr-only" accept=".csv" onChange={handleFileChange} disabled={uploading} />
                   </label>
                   <p className="pl-1">or drag and drop</p>
+                  <p className="text-xs leading-5 text-gray-600">CSV files only</p>
                 </div>
-                <p className="text-xs leading-5 text-gray-600">CSV files only</p>
+              </div>
+              
+              {error && (
+                <div className="mt-4 rounded-md bg-red-50 p-4">
+                  <div className="text-sm text-red-700">{error}</div>
+                </div>
+              )}
+              
+              {uploading && (
+                <div className="mt-4 flex justify-center items-center text-sm text-indigo-600 font-medium">
+                  Processing claims in chunks...
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {batches.map(batch => (
+            <div key={batch.id} className="bg-white overflow-hidden shadow rounded-lg divide-y divide-gray-200">
+              <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
+                <h3 className="text-lg font-medium text-gray-900 truncate" title={batch.name}>{batch.name}</h3>
+                <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
+                  batch.status === 'completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
+                  batch.status === 'open' ? 'bg-blue-50 text-blue-700 ring-blue-600/20' :
+                  'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
+                }`}>
+                  {batch.status}
+                </span>
+              </div>
+              <div className="px-4 py-5 sm:p-6 text-sm text-gray-500 space-y-2">
+                <p>Created: {new Date(batch.created_at).toLocaleString()}</p>
+                <p>Total Claims: <span className="font-medium text-gray-900">{batch.total_claims}</span></p>
+                <p>Approved: <span className="font-medium text-green-600">{batch.approved_count}</span></p>
+                <p>Manual Review: <span className="font-medium text-yellow-600">{batch.manual_review_count}</span></p>
+                <p>Total Uplift: <span className="font-medium text-blue-600">{formatCurrency(batch.total_uplift)}</span></p>
+              </div>
+              <div className="px-4 py-4 sm:px-6">
+                <Link href={`/dashboard/batch/${batch.id}`} className="text-indigo-600 hover:text-indigo-900 font-medium text-sm">
+                  View Details &rarr;
+                </Link>
               </div>
             </div>
-            
-            {error && (
-              <div className="mt-4 rounded-md bg-red-50 p-4">
-                <div className="text-sm text-red-700">{error}</div>
-              </div>
-            )}
-            
-            {uploading && (
-              <div className="mt-4 flex justify-center items-center text-sm text-indigo-600 font-medium">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Processing claims...
-              </div>
-            )}
-          </div>
+          ))}
+          {batches.length === 0 && (
+            <div className="col-span-full py-12 text-center text-sm text-gray-500 bg-white shadow rounded-lg">
+              No batches found. Click "New Upload" to get started.
+            </div>
+          )}
         </div>
 
-        {/* RESULTS TABLE */}
-        <div className="bg-white shadow sm:rounded-lg overflow-hidden">
-          <div className="px-4 py-5 sm:px-6">
-            <h3 className="text-base font-semibold leading-6 text-gray-900">Recent Routing Decisions</h3>
-          </div>
-          <div className="border-t border-gray-200">
-            {tableData.length === 0 ? (
-              <div className="px-4 py-12 text-center text-sm text-gray-500">
-                No claims processed yet. Upload a CSV to get started.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-300">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Patient ID</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Recommended Plan</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Uplift</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Decision</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
-                    {tableData.map((claim) => {
-                      const decision = claim.routing_decisions?.[0]
-                      return (
-                        <tr key={claim.id}>
-                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{decision?.recommended_plan || '-'}</td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{decision?.uplift_amount ? formatCurrency(decision.uplift_amount) : '-'}</td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                            {decision ? (
-                              <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-                                decision.decision === 'approved' 
-                                  ? 'bg-green-50 text-green-700 ring-green-600/20' 
-                                  : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
-                              }`}>
-                                {decision.decision}
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/10">
-                                {claim.status}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-4 text-sm text-gray-500 whitespace-normal">{decision?.reason || '-'}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* MANUAL REVIEW QUEUE */}
-        <div className="bg-white shadow sm:rounded-lg overflow-hidden">
-          <div className="px-4 py-5 sm:px-6">
-            <h3 className="text-base font-semibold leading-6 text-gray-900">Manual Review Queue</h3>
-          </div>
-          <div className="border-t border-gray-200">
-            {manualReviewClaims.length === 0 ? (
-              <div className="px-4 py-12 text-center text-sm text-gray-500">
-                No claims require manual review.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-300">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Patient ID</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Reason</th>
-                      <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900 sm:pr-6">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
-                    {manualReviewClaims.map((claim) => {
-                      const decision = claim.routing_decisions[0]
-                      const isPrefixIssue = decision.reason.toLowerCase().includes('prefix')
-                      const isMAorFEP = decision.reason.includes('Medicare Advantage') || decision.reason.includes('FEP')
-                      
-                      let anthemExpected = null
-                      let blueShieldExpected = null
-
-                      if (isPrefixIssue) {
-                        const anthemContract = contracts.find(c => c.product_type === claim.product_type && c.plan_name === 'Anthem')
-                        const bsContract = contracts.find(c => c.product_type === claim.product_type && c.plan_name === 'Blue Shield')
-                        if (anthemContract) anthemExpected = claim.charge_amount * anthemContract.reimbursement_rate
-                        if (bsContract) blueShieldExpected = claim.charge_amount * bsContract.reimbursement_rate
-                      }
-
-                      return (
-                        <tr key={claim.id}>
-                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
-                          <td className="px-3 py-4 text-sm text-gray-500 whitespace-normal">
-                            {decision.reason}
-                            {isPrefixIssue && <p className="mt-1 text-xs text-red-600 font-medium">Note: Prefix not recognized. Verify member eligibility and select the correct local plan.</p>}
-                            {isMAorFEP && <p className="mt-1 text-xs text-yellow-600 font-medium">Note: Medicare Advantage or FEP products are billed outside standard BlueCard routing.</p>}
-                          </td>
-                          <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
-                            {isMAorFEP ? (
-                              <button
-                                onClick={() => handleManualRoute(decision.id, '-', 'MA/FEP claim billed separately outside BlueCard routing')}
-                                className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-100 ring-1 ring-inset ring-gray-300"
-                              >
-                                Mark as Billed Separately
-                              </button>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleManualRoute(decision.id, 'Anthem')}
-                                  className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1.5 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-100"
-                                >
-                                  Route to Anthem {anthemExpected !== null ? `(${formatCurrency(anthemExpected)} expected)` : ''}
-                                </button>
-                                <button
-                                  onClick={() => handleManualRoute(decision.id, 'Blue Shield')}
-                                  className="inline-flex items-center rounded-md bg-indigo-50 px-2.5 py-1.5 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
-                                >
-                                  Route to Blue Shield {blueShieldExpected !== null ? `(${formatCurrency(blueShieldExpected)} expected)` : ''}
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
       </main>
     </div>
   )

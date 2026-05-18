@@ -1,10 +1,16 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { processClain } from '@/lib/rulesEngine'
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     const supabase = createClient()
+    const body = await request.json() as Record<string, unknown>
+    const batch_id = body.batch_id as string
+
+    if (!batch_id) {
+      return NextResponse.json({ error: 'batch_id is required' }, { status: 400 })
+    }
     
     // 1. Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -23,11 +29,12 @@ export async function POST() {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
-    // 3. Get all pending claims for the user
+    // 3. Get all pending claims for the batch
     const { data: claims, error: claimsError } = await supabase
       .from('claims')
       .select('*')
       .eq('client_id', profile.client_id)
+      .eq('batch_id', batch_id)
       .eq('status', 'pending')
 
     if (claimsError) {
@@ -40,53 +47,72 @@ export async function POST() {
 
     let processedCount = 0
     let manualReviewCount = 0
-    const routingDecisionsToInsert = []
-    const claimIdsToUpdate = []
+    let totalUplift = 0
 
-    // 4. Run each claim through processClain
-    for (const claim of claims) {
-      const decisionResult = await processClain(claim, supabase)
-      
-      routingDecisionsToInsert.push({
-        claim_id: claim.id,
-        decision: decisionResult.decision,
-        reason: decisionResult.reason,
-        recommended_plan: decisionResult.recommended_plan || null,
-        alternate_plan: decisionResult.alternate_plan || null,
-        uplift_amount: decisionResult.uplift_amount || null,
+    // Process in chunks of 50
+    const chunkSize = 50
+    for (let i = 0; i < claims.length; i += chunkSize) {
+      const chunk = claims.slice(i, i + chunkSize)
+      const routingDecisionsToInsert = []
+      const claimIdsToUpdate = []
+
+      for (const claim of chunk) {
+        const decisionResult = await processClain(claim, supabase)
+        
+        routingDecisionsToInsert.push({
+          batch_id,
+          claim_id: claim.id,
+          decision: decisionResult.decision,
+          reason: decisionResult.reason,
+          recommended_plan: decisionResult.recommended_plan || null,
+          alternate_plan: decisionResult.alternate_plan || null,
+          uplift_amount: decisionResult.uplift_amount || null,
+        })
+
+        claimIdsToUpdate.push(claim.id)
+
+        if (decisionResult.decision === 'manual_review') {
+          manualReviewCount++
+        } else {
+          processedCount++
+        }
+        if (decisionResult.uplift_amount) {
+          totalUplift += decisionResult.uplift_amount
+        }
+      }
+
+      if (routingDecisionsToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('routing_decisions')
+          .insert(routingDecisionsToInsert)
+
+        if (insertError) {
+          throw new Error(`Failed to insert routing decisions: ${insertError.message}`)
+        }
+      }
+
+      if (claimIdsToUpdate.length > 0) {
+        const { error: updateError } = await supabase
+          .from('claims')
+          .update({ status: 'processed' })
+          .in('id', claimIdsToUpdate)
+
+        if (updateError) {
+          throw new Error(`Failed to update claims status: ${updateError.message}`)
+        }
+      }
+    }
+
+    // Update batch record
+    await supabase
+      .from('batches')
+      .update({
+        status: 'open',
+        approved_count: processedCount,
+        manual_review_count: manualReviewCount,
+        total_uplift: totalUplift
       })
-
-      claimIdsToUpdate.push(claim.id)
-
-      if (decisionResult.decision === 'manual_review') {
-        manualReviewCount++
-      } else {
-        processedCount++
-      }
-    }
-
-    // 5. Insert into routing_decisions table
-    if (routingDecisionsToInsert.length > 0) {
-      const { error: insertError } = await supabase
-        .from('routing_decisions')
-        .insert(routingDecisionsToInsert)
-
-      if (insertError) {
-        throw new Error(`Failed to insert routing decisions: ${insertError.message}`)
-      }
-    }
-
-    // 6. Update claim status to 'processed'
-    if (claimIdsToUpdate.length > 0) {
-      const { error: updateError } = await supabase
-        .from('claims')
-        .update({ status: 'processed' })
-        .in('id', claimIdsToUpdate)
-
-      if (updateError) {
-        throw new Error(`Failed to update claims status: ${updateError.message}`)
-      }
-    }
+      .eq('id', batch_id)
 
     // 7. Return summary
     return NextResponse.json({
