@@ -287,11 +287,14 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
         })
 
         // Insert Claims
-        const { error: insertError } = await supabase
-          .from('claims')
-          .insert(claimsToInsert)
-
-        if (insertError) throw new Error()
+        const chunkSize = 100
+        for (let i = 0; i < claimsToInsert.length; i += chunkSize) {
+          const chunk = claimsToInsert.slice(i, i + chunkSize)
+          const { error: insertError } = await supabase
+            .from('claims')
+            .insert(chunk)
+          if (insertError) throw new Error('Failed to insert claims chunk: ' + insertError.message)
+        }
 
         // Call Edge Function (fire-and-forget)
         const session = await supabase.auth.getSession()
