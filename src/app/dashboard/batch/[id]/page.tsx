@@ -1,11 +1,11 @@
-// REMINDER: Run the following SQL migration in Supabase console:
+// REMINDER: Run the following SQL migrations in Supabase console:
 // ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS anthem_expected numeric;
 // ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS blueshield_expected numeric;
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { BatchDetailClient } from '@/components/BatchDetailClient'
-import { ClaimWithDecision, PlanContract } from '@/components/DashboardClient'
+import { PlanContract } from '@/components/DashboardClient'
 
 export default async function BatchDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -38,15 +38,6 @@ export default async function BatchDetailPage({ params }: { params: { id: string
     redirect('/dashboard')
   }
 
-  // Fetch claims and routing decisions
-  const { data: claimsData } = await supabase
-    .from('claims')
-    .select('*, routing_decisions(*)')
-    .eq('batch_id', params.id)
-    .order('created_at', { ascending: false })
-
-  const tableData = (claimsData || []) as unknown as ClaimWithDecision[]
-
   // Fetch plan contracts
   const { data: contractsData } = await supabase
     .from('plan_contracts')
@@ -58,7 +49,6 @@ export default async function BatchDetailPage({ params }: { params: { id: string
   return (
     <BatchDetailClient 
       batch={batchData}
-      tableData={tableData}
       contracts={contracts}
     />
   )
