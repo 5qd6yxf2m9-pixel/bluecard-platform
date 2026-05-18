@@ -33,6 +33,10 @@ export function ContractsManagerClient({ initialClients }: ContractsManagerClien
   const [productType, setProductType] = useState<string>('PPO')
   const [reimbursementRate, setReimbursementRate] = useState<string>('')
   
+  // Inline Editing State
+  const [editingContractId, setEditingContractId] = useState<string | null>(null)
+  const [editingRate, setEditingRate] = useState<string>('')
+
   // Feedback Messages
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -137,6 +141,51 @@ export function ContractsManagerClient({ initialClients }: ContractsManagerClien
     }
   }
 
+  const handleStartEdit = (contract: PlanContractData) => {
+    setEditingContractId(contract.id)
+    setEditingRate((contract.reimbursement_rate * 100).toFixed(1).replace(/\.0$/, ''))
+  }
+
+  const handleSaveEdit = async (contractId: string) => {
+    setSuccessMessage(null)
+    setErrorMessage(null)
+
+    const rateNum = parseFloat(editingRate)
+    if (isNaN(rateNum) || rateNum < 0 || rateNum > 200) {
+      setErrorMessage('Please enter a valid reimbursement rate between 0% and 200%.')
+      return
+    }
+
+    try {
+      const rateDecimal = rateNum / 100
+
+      const { error } = await supabase
+        .from('plan_contracts')
+        .update({
+          reimbursement_rate: rateDecimal
+        })
+        .eq('id', contractId)
+
+      if (error) throw error
+
+      setSuccessMessage('Contract rate updated successfully!')
+      setEditingContractId(null)
+      await fetchContracts(selectedClientId)
+
+      // Briefly clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage(null)
+      }, 3000)
+    } catch {
+      setErrorMessage('Failed to update contract rate.')
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingContractId(null)
+    setEditingRate('')
+  }
+
   return (
     <div className="space-y-8 max-w-5xl">
       <div>
@@ -192,30 +241,70 @@ export function ContractsManagerClient({ initialClients }: ContractsManagerClien
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">State</th>
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product Type</th>
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Reimbursement Rate</th>
-                    <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                    <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6 w-[200px]">
                       <span className="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {contracts.map((contract) => (
-                    <tr key={contract.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-semibold text-gray-900 sm:pl-6">{contract.plan_name}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{contract.state || 'CA'}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{contract.product_type}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-indigo-600">
-                        {`${(contract.reimbursement_rate * 100).toFixed(1).replace(/\.0$/, '')}%`}
-                      </td>
-                      <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        <button
-                          onClick={() => handleDeleteContract(contract.id)}
-                          className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 shadow-sm ring-1 ring-inset ring-red-300 hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {contracts.map((contract) => {
+                    const isEditing = editingContractId === contract.id
+                    return (
+                      <tr key={contract.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-semibold text-gray-900 sm:pl-6">{contract.plan_name}</td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{contract.state || 'CA'}</td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{contract.product_type}</td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm font-medium">
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={editingRate}
+                              onChange={(e) => setEditingRate(e.target.value)}
+                              className="w-24 px-2 py-1 border border-gray-300 rounded-md focus:border-blue-700"
+                            />
+                          ) : (
+                            <span className="text-indigo-600">
+                              {`${(contract.reimbursement_rate * 100).toFixed(1).replace(/\.0$/, '')}%`}
+                            </span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
+                          {isEditing ? (
+                            <>
+                              <button
+                                onClick={() => handleSaveEdit(contract.id)}
+                                className="inline-flex items-center rounded-md bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-green-700"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleStartEdit(contract)}
+                                className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-indigo-600 shadow-sm ring-1 ring-inset ring-indigo-300 hover:bg-indigo-50"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteContract(contract.id)}
+                                className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 shadow-sm ring-1 ring-inset ring-red-300 hover:bg-red-50"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
