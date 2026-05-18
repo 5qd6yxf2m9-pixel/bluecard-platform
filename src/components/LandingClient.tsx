@@ -3,87 +3,174 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
+interface ClaimExample {
+  claim: string;
+  type: string;
+  charge: number;
+  anthem: number;
+  bs: number;
+  uplift: number;
+  winner: 'anthem' | 'bs';
+}
+
+const EXAMPLES: ClaimExample[] = [
+  {
+    claim: '#PT2847',
+    type: 'PPO',
+    charge: 4200,
+    anthem: 3570,
+    bs: 3276,
+    uplift: 294,
+    winner: 'anthem',
+  },
+  {
+    claim: '#PT1093',
+    type: 'HMO',
+    charge: 2800,
+    anthem: 2240,
+    bs: 2352,
+    uplift: 112,
+    winner: 'bs',
+  },
+  {
+    claim: '#PT3761',
+    type: 'PPO',
+    charge: 6500,
+    anthem: 5525,
+    bs: 5070,
+    uplift: 455,
+    winner: 'anthem',
+  },
+  {
+    claim: '#PT8834',
+    type: 'HMO',
+    charge: 1900,
+    anthem: 1520,
+    bs: 1634,
+    uplift: 114,
+    winner: 'bs',
+  },
+  {
+    claim: '#PT5219',
+    type: 'PPO',
+    charge: 9100,
+    anthem: 7735,
+    bs: 7098,
+    uplift: 637,
+    winner: 'anthem',
+  },
+];
+
 function HeroAnimation() {
-  const [phase, setPhase] = useState(0)
-  const [claimNum, setClaimNum] = useState(2847)
-  const [amount, setAmount] = useState(4200)
+  const [index, setIndex] = useState(0);
+  const [fade, setFade] = useState(true);
 
   useEffect(() => {
-    const cycle = () => {
-      setPhase(0)
+    const interval = setInterval(() => {
+      setFade(false);
       setTimeout(() => {
-        setClaimNum(Math.floor(Math.random() * 8000) + 1000)
-        setAmount(Math.floor(Math.random() * 5000) + 1500)
-        setPhase(1)
-      }, 500)
-      setTimeout(() => setPhase(2), 1500)
-      setTimeout(() => setPhase(3), 2500)
-      setTimeout(() => setPhase(4), 4500)
-    }
+        setIndex((prevIndex) => (prevIndex + 1) % EXAMPLES.length);
+        setFade(true);
+      }, 400);
+    }, 4000);
 
-    cycle()
-    const interval = setInterval(cycle, 5000)
-    return () => clearInterval(interval)
-  }, [])
+    return () => clearInterval(interval);
+  }, []);
 
-  const anthemAmt = Math.floor(amount * 0.85)
-  const bsAmt = Math.floor(amount * 0.78)
-  const uplift = anthemAmt - bsAmt
-
-  const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val)
+  const current = EXAMPLES[index];
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0,
+    }).format(val);
 
   return (
-    <div className="relative w-full max-w-md mx-auto aspect-[4/3] flex items-center justify-center perspective-1000">
-      <div className={`w-full bg-white rounded-xl shadow-2xl shadow-navy/10 border border-gray-100 p-6 transition-all duration-500 transform ${phase === 0 || phase === 4 ? 'opacity-0 translate-y-4 scale-95' : 'opacity-100 translate-y-0 scale-100'}`}>
-        
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
-          <div>
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Incoming Claim</div>
-            <div className="font-display font-bold text-lg text-navy">#PT{claimNum} | PPO</div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Billed Charge</div>
-            <div className="font-display font-bold text-xl text-gray-900">{formatCurrency(amount)}</div>
-          </div>
-        </div>
-
-        {/* Comparisons */}
-        <div className="space-y-3 relative">
-          {/* Blue Shield Row */}
-          <div className={`flex justify-between items-center p-3 rounded-lg border transition-all duration-500 ${phase >= 2 ? 'opacity-100 border-gray-200 bg-gray-50' : 'opacity-0 border-transparent bg-transparent'}`}>
-            <div className="font-medium text-gray-600">Blue Shield of CA</div>
-            <div className="font-bold text-gray-900">{formatCurrency(bsAmt)}</div>
+    <div className="relative w-full max-w-md mx-auto aspect-[4/3] flex items-center justify-center">
+      <div className="w-full bg-white rounded-xl shadow-2xl shadow-navy/10 border border-gray-100 p-6 min-h-[300px] flex flex-col justify-between">
+        <div className={`transition-all duration-300 ${fade ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+          
+          {/* Header */}
+          <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
+            <div>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Incoming Claim</div>
+              <div className="font-display font-bold text-lg text-navy">{current.claim} | {current.type}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Billed Charge</div>
+              <div className="font-display font-bold text-xl text-gray-900">{formatCurrency(current.charge)}</div>
+            </div>
           </div>
 
-          {/* Anthem Row (Winner) */}
-          <div className={`flex justify-between items-center p-3 rounded-lg border transition-all duration-500 relative ${phase >= 3 ? 'opacity-100 border-electric bg-blue-50/50 shadow-[0_0_15px_rgba(0,102,255,0.15)] scale-[1.02]' : phase >= 2 ? 'opacity-100 border-gray-200 bg-gray-50 scale-100' : 'opacity-0 border-transparent bg-transparent scale-100'}`}>
-            <div className="flex items-center space-x-2">
-              <div className="font-medium text-navy">Anthem Blue Cross</div>
-              <div className={`transition-all duration-300 ${phase >= 3 ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                <div className="flex items-center space-x-1 bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Route</span>
+          {/* Comparisons */}
+          <div className="space-y-3">
+            
+            {/* Anthem Row */}
+            <div className={`flex justify-between items-center p-3 rounded-lg border transition-all duration-300 ${
+              current.winner === 'anthem'
+                ? 'border-electric bg-blue-50/50 shadow-[0_0_15px_rgba(0,102,255,0.15)] scale-[1.02]'
+                : 'border-gray-200 bg-gray-50/50'
+            }`}>
+              <div className="flex items-center space-x-2">
+                <div className="font-medium text-navy">Anthem Blue Cross</div>
+                {current.winner === 'anthem' && (
+                  <div className="flex items-center space-x-1 bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Route</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                {current.winner === 'anthem' && (
+                  <span className="bg-electric text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                    +{formatCurrency(current.uplift)} uplift
+                  </span>
+                )}
+                <div className={`font-bold ${current.winner === 'anthem' ? 'text-electric' : 'text-gray-900'}`}>
+                  {formatCurrency(current.anthem)}
                 </div>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <div className={`transition-all duration-500 ${phase >= 3 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'}`}>
-                <span className="bg-electric text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
-                  +{formatCurrency(uplift)}
-                </span>
+
+            {/* Blue Shield Row */}
+            <div className={`flex justify-between items-center p-3 rounded-lg border transition-all duration-300 ${
+              current.winner === 'bs'
+                ? 'border-electric bg-blue-50/50 shadow-[0_0_15px_rgba(0,102,255,0.15)] scale-[1.02]'
+                : 'border-gray-200 bg-gray-50/50'
+            }`}>
+              <div className="flex items-center space-x-2">
+                <div className="font-medium text-navy">Blue Shield of CA</div>
+                {current.winner === 'bs' && (
+                  <div className="flex items-center space-x-1 bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Route</span>
+                  </div>
+                )}
               </div>
-              <div className={`font-bold transition-colors duration-300 ${phase >= 3 ? 'text-electric' : 'text-gray-900'}`}>
-                {formatCurrency(anthemAmt)}
+              
+              <div className="flex items-center space-x-3">
+                {current.winner === 'bs' && (
+                  <span className="bg-electric text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                    +{formatCurrency(current.uplift)} uplift
+                  </span>
+                )}
+                <div className={`font-bold ${current.winner === 'bs' ? 'text-electric' : 'text-gray-900'}`}>
+                  {formatCurrency(current.bs)}
+                </div>
               </div>
             </div>
+
           </div>
+
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export function LandingClient() {
