@@ -22,7 +22,29 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
   const [loading, setLoading] = useState(true)
   const [claims, setClaims] = useState<ClaimWithDecision[]>([])
   const [totalCount, setTotalCount] = useState(0)
+  const [editingName, setEditingName] = useState(false)
+  const [batchName, setBatchName] = useState(batch.name)
   const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null)
+
+  const handleSaveBatchName = async () => {
+    if (!batchName.trim()) return
+    try {
+      const { error: renameError } = await supabase
+        .from('batches')
+        .update({ name: batchName.trim() })
+        .eq('id', batch.id)
+
+      if (renameError) throw renameError
+      setEditingName(false)
+    } catch {
+      alert('Failed to rename batch.')
+    }
+  }
+
+  const handleCancelRename = () => {
+    setEditingName(false)
+    setBatchName(batch.name)
+  }
   
   const [stats, setStats] = useState({
     totalClaims: batch.total_claims || 0,
@@ -374,7 +396,45 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
             <Link href="/dashboard" className="text-gray-500 hover:text-gray-900">
               &larr; Back
             </Link>
-            <h1 className="text-xl font-bold text-gray-900">{batch.name}</h1>
+            {editingName ? (
+              <div className="flex items-center space-x-1">
+                <input
+                  type="text"
+                  value={batchName}
+                  onChange={(e) => setBatchName(e.target.value)}
+                  className="px-2 py-1 border border-gray-300 rounded text-sm font-bold text-gray-900 bg-white"
+                  autoFocus
+                />
+                <button
+                  onClick={handleSaveBatchName}
+                  className="text-green-600 hover:text-green-800 p-1 flex-shrink-0"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleCancelRename}
+                  className="text-red-600 hover:text-red-800 p-1 flex-shrink-0"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <h1 className="text-xl font-bold text-gray-900">{batchName}</h1>
+                <button
+                  onClick={() => setEditingName(true)}
+                  className="text-gray-400 hover:text-[#2563eb] p-1 transition-colors flex-shrink-0"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              </div>
+            )}
             <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
               batch.status === 'completed' ? 'bg-green-50 text-green-700 ring-green-600/20' : 
               batch.status === 'open' ? 'bg-blue-50 text-blue-700 ring-blue-600/20' :

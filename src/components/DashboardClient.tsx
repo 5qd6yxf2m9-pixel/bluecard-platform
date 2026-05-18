@@ -66,8 +66,38 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
+  const [editingBatchId, setEditingBatchId] = useState<string | null>(null)
+  const [editingBatchName, setEditingBatchName] = useState<string>('')
+  
   const router = useRouter()
   const supabase = createClient()
+
+  const handleStartRename = (batchId: string, currentName: string) => {
+    setEditingBatchId(batchId)
+    setEditingBatchName(currentName)
+  }
+
+  const handleSaveRename = async (batchId: string) => {
+    if (!editingBatchName.trim()) return
+    try {
+      const { error: renameError } = await supabase
+        .from('batches')
+        .update({ name: editingBatchName.trim() })
+        .eq('id', batchId)
+
+      if (renameError) throw renameError
+
+      setEditingBatchId(null)
+      await fetchBatches()
+    } catch {
+      alert('Failed to rename batch.')
+    }
+  }
+
+  const handleCancelRename = () => {
+    setEditingBatchId(null)
+    setEditingBatchName('')
+  }
 
   const fetchBatches = async () => {
     setLoading(true)
@@ -142,8 +172,38 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
           return rowData
         })
 
-        // 1. Create Batch
-        const batchName = `Upload - ${new Date().toLocaleString()}`
+        // Find earliest and latest DOS
+        let earliestDate: Date | null = null
+        let latestDate: Date | null = null
+
+        rows.forEach(row => {
+          if (row.dos) {
+            const d = new Date(row.dos)
+            if (!isNaN(d.getTime())) {
+              if (!earliestDate || d < earliestDate) earliestDate = d
+              if (!latestDate || d > latestDate) latestDate = d
+            }
+          }
+        })
+
+        const formatDateShort = (d: Date) => {
+          const mm = String(d.getMonth() + 1).padStart(2, '0')
+          const dd = String(d.getDate()).padStart(2, '0')
+          const yy = String(d.getFullYear()).slice(-2)
+          return `${mm}/${dd}/${yy}`
+        }
+
+        let batchName = `Upload - ${new Date().toLocaleString()}`
+        if (earliestDate && latestDate) {
+          const earliestStr = formatDateShort(earliestDate)
+          const latestStr = formatDateShort(latestDate)
+          if (earliestStr === latestStr) {
+            batchName = `Claims: ${earliestStr}`
+          } else {
+            batchName = `Claims: ${earliestStr} - ${latestStr}`
+          }
+        }
+
         const { data: batch, error: batchError } = await supabase
           .from('batches')
           .insert({
@@ -405,10 +465,48 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
                 >
                   {/* Card Header */}
                   <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-start space-x-2">
-                    <div className="overflow-hidden">
-                      <h3 className="text-lg font-bold text-[#0a1628] truncate font-display" title={batch.name}>
-                        {batch.name}
-                      </h3>
+                    <div className="overflow-hidden flex-1">
+                      {editingBatchId === batch.id ? (
+                        <div className="flex items-center space-x-1 w-full my-1">
+                          <input
+                            type="text"
+                            value={editingBatchName}
+                            onChange={(e) => setEditingBatchName(e.target.value)}
+                            className="px-2 py-1 border border-gray-300 rounded text-sm w-full font-bold text-[#0a1628]"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleSaveRename(batch.id)}
+                            className="text-green-600 hover:text-green-800 p-1 flex-shrink-0"
+                          >
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={handleCancelRename}
+                            className="text-red-600 hover:text-red-800 p-1 flex-shrink-0"
+                          >
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <h3 className="text-lg font-bold text-[#0a1628] truncate font-display" title={batch.name}>
+                            {batch.name}
+                          </h3>
+                          <button
+                            onClick={() => handleStartRename(batch.id, batch.name)}
+                            className="text-gray-400 hover:text-[#2563eb] p-1 transition-colors flex-shrink-0"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                       <p className="text-xs text-gray-400 mt-0.5">
                         {new Date(batch.created_at).toLocaleDateString()} at {new Date(batch.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
