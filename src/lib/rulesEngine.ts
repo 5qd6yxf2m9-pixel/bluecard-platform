@@ -151,9 +151,25 @@ export async function processClain(
 
   // 5. If neither plan has a contract
   if (contracts.length === 0) {
+    let hasOtherContracts = false
+    if (contractMap) {
+      hasOtherContracts = contractMap.size > 0
+    } else {
+      const { data: anyContracts } = await supabase
+        .from('plan_contracts')
+        .select('id')
+        .eq('client_id', client_id)
+        .limit(1)
+      hasOtherContracts = !!anyContracts && anyContracts.length > 0
+    }
+
+    const reason = hasOtherContracts
+      ? `No contracts found for product type ${product_type} - add contract rates in admin`
+      : 'No contracts found for this product type'
+
     return {
       decision: 'manual_review',
-      reason: 'No contracts found for this product type',
+      reason,
       confidence_score: 0
     }
   }

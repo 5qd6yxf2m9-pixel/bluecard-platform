@@ -382,6 +382,18 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
     )
   }
 
+  const invalidPrefixClaims = claims.filter(claim => 
+    claim.routing_decisions?.[0]?.reason?.includes('Invalid or inactive alpha prefix')
+  )
+
+  const excludedProductsClaims = claims.filter(claim => 
+    claim.routing_decisions?.[0]?.reason?.includes('Medicare Advantage or FEP')
+  )
+
+  const missingContractClaims = claims.filter(claim => 
+    claim.routing_decisions?.[0]?.reason?.includes('No contracts found')
+  )
+
   const totalPages = Math.ceil(totalCount / itemsPerPage)
 
   return (
@@ -578,6 +590,283 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                 {tab === 'routing_decisions' ? 'No approved claims found.' : 
                  tab === 'manual_review' ? 'No claims require manual review.' : 
                  'No duplicate claims detected.'}
+              </div>
+            ) : tab === 'manual_review' ? (
+              <div className="space-y-12 py-6">
+                {/* SECTION 1: Invalid Prefix */}
+                {invalidPrefixClaims.length > 0 && (
+                  <div className="px-6">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <h4 className="text-base font-bold text-[#0a1628] font-display">
+                        Invalid Prefix
+                      </h4>
+                      <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/10">
+                        {invalidPrefixClaims.length}
+                      </span>
+                    </div>
+                    <p className="text-sm text-red-700 bg-red-50/50 border border-red-100 rounded-md px-4 py-2 mb-4">
+                      Prefix not recognized. Verify member eligibility before routing.
+                    </p>
+                    <div className="overflow-hidden border border-gray-200 rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-300">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Patient ID</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Date of Service</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Anthem Expected</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Blue Shield Expected</th>
+                            <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900 w-[300px]">Actions</th>
+                            <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                              <span className="sr-only">Details</span>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {invalidPrefixClaims.map(claim => {
+                            const decision = claim.routing_decisions?.[0]
+                            const isExpanded = expandedClaimId === claim.id
+
+                            let anthemExpectedVal = decision?.anthem_expected ?? null;
+                            let bsExpectedVal = decision?.blueshield_expected ?? null;
+                            const anthemContract = contracts.find(c => c.product_type === claim.product_type && c.plan_name === 'Anthem')
+                            const bsContract = contracts.find(c => c.product_type === claim.product_type && c.plan_name === 'Blue Shield')
+                            if (anthemContract) anthemExpectedVal = claim.charge_amount * anthemContract.reimbursement_rate
+                            if (bsContract) bsExpectedVal = claim.charge_amount * bsContract.reimbursement_rate
+
+                            return (
+                              <Fragment key={claim.id}>
+                                <tr className={isExpanded ? 'bg-indigo-50/20' : undefined}>
+                                  <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.dos}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{anthemExpectedVal !== null ? formatCurrency(anthemExpectedVal) : '-'}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{bsExpectedVal !== null ? formatCurrency(bsExpectedVal) : '-'}</td>
+                                  <td className="whitespace-nowrap py-4 px-3 text-center text-sm font-medium space-x-2">
+                                    <button
+                                      onClick={() => handleManualRoute(decision.id, 'Anthem')}
+                                      className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-100"
+                                    >
+                                      Route to Anthem {anthemExpectedVal !== null ? `(${formatCurrency(anthemExpectedVal)})` : ''}
+                                    </button>
+                                    <button
+                                      onClick={() => handleManualRoute(decision.id, 'Blue Shield')}
+                                      className="inline-flex items-center rounded-md bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
+                                    >
+                                      Route to Blue Shield {bsExpectedVal !== null ? `(${formatCurrency(bsExpectedVal)})` : ''}
+                                    </button>
+                                  </td>
+                                  <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                    <button
+                                      onClick={() => toggleExpand(claim.id)}
+                                      className="inline-flex items-center justify-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                                    >
+                                      {isExpanded ? 'Hide' : 'Details'}
+                                    </button>
+                                  </td>
+                                </tr>
+                                {isExpanded && (
+                                  <tr className="bg-gray-50/50">
+                                    <td colSpan={9} className="px-6 py-4 text-sm text-gray-700">
+                                      <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm max-w-4xl space-y-2">
+                                        <h4 className="font-semibold text-gray-900 mb-2 text-xs uppercase tracking-wider text-gray-500">Routing Decision Details</h4>
+                                        {getReasonLines(decision?.reason || '').map((line, idx) => (
+                                          <p key={idx} className="text-sm leading-relaxed text-gray-700 font-medium">
+                                            {line}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 2: Excluded Products */}
+                {excludedProductsClaims.length > 0 && (
+                  <div className="px-6">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <h4 className="text-base font-bold text-[#0a1628] font-display">
+                        Excluded Products
+                      </h4>
+                      <span className="inline-flex items-center rounded-full bg-yellow-50 px-2 py-0.5 text-xs font-semibold text-yellow-700 ring-1 ring-inset ring-yellow-600/10">
+                        {excludedProductsClaims.length}
+                      </span>
+                    </div>
+                    <p className="text-sm text-yellow-700 bg-yellow-50/50 border border-yellow-100 rounded-md px-4 py-2 mb-4">
+                      MA and FEP products are typically billed outside BlueCard. Verify before routing.
+                    </p>
+                    <div className="overflow-hidden border border-gray-200 rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-300">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Patient ID</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Date of Service</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
+                            <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900 w-[420px]">Actions</th>
+                            <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                              <span className="sr-only">Details</span>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {excludedProductsClaims.map(claim => {
+                            const decision = claim.routing_decisions?.[0]
+                            const isExpanded = expandedClaimId === claim.id
+
+                            return (
+                              <Fragment key={claim.id}>
+                                <tr className={isExpanded ? 'bg-indigo-50/20' : undefined}>
+                                  <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.dos}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
+                                  <td className="whitespace-nowrap py-4 px-3 text-center text-sm font-medium space-x-2">
+                                    <button
+                                      onClick={() => handleManualRoute(decision.id, '-', 'MA/FEP claim billed separately outside BlueCard routing')}
+                                      className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-100 ring-1 ring-inset ring-gray-300"
+                                    >
+                                      Bill Separately
+                                    </button>
+                                    <button
+                                      onClick={() => handleManualRoute(decision.id, 'Anthem')}
+                                      className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-100"
+                                    >
+                                      Route to Anthem
+                                    </button>
+                                    <button
+                                      onClick={() => handleManualRoute(decision.id, 'Blue Shield')}
+                                      className="inline-flex items-center rounded-md bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
+                                    >
+                                      Route to Blue Shield
+                                    </button>
+                                  </td>
+                                  <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                    <button
+                                      onClick={() => toggleExpand(claim.id)}
+                                      className="inline-flex items-center justify-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                                    >
+                                      {isExpanded ? 'Hide' : 'Details'}
+                                    </button>
+                                  </td>
+                                </tr>
+                                {isExpanded && (
+                                  <tr className="bg-gray-50/50">
+                                    <td colSpan={7} className="px-6 py-4 text-sm text-gray-700">
+                                      <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm max-w-4xl space-y-2">
+                                        <h4 className="font-semibold text-gray-900 mb-2 text-xs uppercase tracking-wider text-gray-500">Routing Decision Details</h4>
+                                        {getReasonLines(decision?.reason || '').map((line, idx) => (
+                                          <p key={idx} className="text-sm leading-relaxed text-gray-700 font-medium">
+                                            {line}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 3: Missing Contract */}
+                {missingContractClaims.length > 0 && (
+                  <div className="px-6">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <h4 className="text-base font-bold text-[#0a1628] font-display">
+                        Missing Contract
+                      </h4>
+                      <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/10">
+                        {missingContractClaims.length}
+                      </span>
+                    </div>
+                    <p className="text-sm text-red-700 bg-red-50/50 border border-red-100 rounded-md px-4 py-2 mb-4">
+                      No contract rate on file for this product type. Add the contract rate in Admin &gt; Contracts then reprocess.
+                    </p>
+                    <div className="overflow-hidden border border-gray-200 rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-300">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Patient ID</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Date of Service</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
+                            <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900 w-[120px]">Actions</th>
+                            <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                              <span className="sr-only">Details</span>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {missingContractClaims.map(claim => {
+                            const decision = claim.routing_decisions?.[0]
+                            const isExpanded = expandedClaimId === claim.id
+
+                            return (
+                              <Fragment key={claim.id}>
+                                <tr className={isExpanded ? 'bg-indigo-50/20' : undefined}>
+                                  <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.dos}</td>
+                                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
+                                  <td className="whitespace-nowrap py-4 px-3 text-center text-sm font-medium">
+                                    <button
+                                      onClick={() => handleDismissClaim(claim.id)}
+                                      className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 shadow-sm ring-1 ring-inset ring-red-300 hover:bg-red-50"
+                                    >
+                                      Dismiss
+                                    </button>
+                                  </td>
+                                  <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                    <button
+                                      onClick={() => toggleExpand(claim.id)}
+                                      className="inline-flex items-center justify-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                                    >
+                                      {isExpanded ? 'Hide' : 'Details'}
+                                    </button>
+                                  </td>
+                                </tr>
+                                {isExpanded && (
+                                  <tr className="bg-gray-50/50">
+                                    <td colSpan={7} className="px-6 py-4 text-sm text-gray-700">
+                                      <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm max-w-4xl space-y-2">
+                                        <h4 className="font-semibold text-gray-900 mb-2 text-xs uppercase tracking-wider text-gray-500">Routing Decision Details</h4>
+                                        {getReasonLines(decision?.reason || '').map((line, idx) => (
+                                          <p key={idx} className="text-sm leading-relaxed text-gray-700 font-medium">
+                                            {line}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <table className="min-w-full divide-y divide-gray-300">
@@ -809,12 +1098,6 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                                     </p>
                                   )
                                 })}
-                                {tab === 'manual_review' && (
-                                  <div className="pt-2 border-t border-gray-100 mt-2 space-y-2">
-                                    {isPrefixIssue && <p className="text-xs text-red-600 font-semibold bg-red-50 border border-red-100 rounded px-2.5 py-1.5 inline-block">Note: Prefix not recognized. Verify member eligibility and select the correct local plan.</p>}
-                                    {isMAorFEP && <p className="text-xs text-yellow-600 font-semibold bg-yellow-50 border border-yellow-100 rounded px-2.5 py-1.5 inline-block">Note: Medicare Advantage or FEP products are billed outside standard BlueCard routing.</p>}
-                                  </div>
-                                )}
                               </div>
                             </td>
                           </tr>
