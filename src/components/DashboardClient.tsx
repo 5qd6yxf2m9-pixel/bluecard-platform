@@ -50,6 +50,7 @@ export interface BatchData {
   total_uplift: number;
   created_at: string;
   completed_at: string | null;
+  processing_error?: string | null;
 }
 
 interface DashboardClientProps {
@@ -104,13 +105,19 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
   const fetchBatches = async () => {
     setLoading(true)
     try {
-      const statusFilter = tab === 'active' ? 'open' : 'completed'
-      const { data, error: fetchErr } = await supabase
-        .from('batches')
-        .select('*')
-        .eq('client_id', clientId)
-        .eq('status', statusFilter)
-        .order('created_at', { ascending: false })
+      const { data, error: fetchErr } = tab === 'active'
+        ? await supabase
+            .from('batches')
+            .select('*')
+            .eq('client_id', clientId)
+            .in('status', ['open', 'processing'])
+            .order('created_at', { ascending: false })
+        : await supabase
+            .from('batches')
+            .select('*')
+            .eq('client_id', clientId)
+            .eq('status', 'completed')
+            .order('created_at', { ascending: false })
       
       if (fetchErr) throw fetchErr
       setBatchesList((data || []) as unknown as BatchData[])
@@ -139,6 +146,45 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
   useEffect(() => {
     fetchCompletedCount()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const processingBatches = batchesList.filter(b => b.status === 'processing')
+    if (processingBatches.length === 0) return
+
+    const interval = setInterval(async () => {
+      let hasChanges = false
+      const updatedList = await Promise.all(
+        batchesList.map(async (batch) => {
+          if (batch.status === 'processing') {
+            try {
+              const { data, error } = await supabase
+                .from('batches')
+                .select('*')
+                .eq('id', batch.id)
+                .single()
+              if (!error && data) {
+                const updatedBatch = data as unknown as BatchData
+                if (updatedBatch.status !== 'processing' || updatedBatch.processing_error) {
+                  hasChanges = true
+                }
+                return updatedBatch
+              }
+            } catch {
+              // Ignore fetch error
+            }
+          }
+          return batch
+        })
+      )
+
+      if (hasChanges) {
+        setBatchesList(updatedList)
+        await fetchCompletedCount()
+      }
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [batchesList, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -256,14 +302,19 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
 
         if (insertError) throw new Error()
 
-        // Call API
-        const response = await fetch('/api/process-claims', { 
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ batch_id: batch.id })
-        })
-
-        if (!response.ok) throw new Error()
+        // Call Edge Function (fire-and-forget)
+        try {
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            fetch('https://jpnqtxkioymainjxlysm.supabase.co/functions/v1/process-batch', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session?.access_token}`
+              },
+              body: JSON.stringify({ batch_id: batch.id, client_id: clientId })
+            }).catch(() => {})
+          }).catch(() => {})
+        } catch { }
 
         setShowUpload(false)
         await fetchBatches()
@@ -474,12 +525,21 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
             </div>
           ) : (
             batchesList.map(batch => {
-              const isOpen = batch.status === 'open'
+              const isError = !!batch.processing_error
+              const isProcessing = batch.status === 'processing'
+              const isCompleted = batch.status === 'completed'
+
               return (
                 <div 
                   key={batch.id} 
                   className={`bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col justify-between overflow-hidden transition-all hover:shadow-md ${
-                    isOpen ? 'border-l-4 border-l-[#2563eb]' : 'border-l-4 border-l-green-500'
+                    isError
+                      ? 'border-l-4 border-l-red-500'
+                      : isProcessing
+                      ? 'border-l-4 border-l-blue-500 animate-pulse'
+                      : isCompleted
+                      ? 'border-l-4 border-l-green-500'
+                      : 'border-l-4 border-l-[#2563eb]'
                   }`}
                 >
                   {/* Card Header */}
@@ -529,49 +589,99 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
                       <p className="text-xs text-gray-400 mt-0.5">
                         {new Date(batch.created_at).toLocaleDateString()} at {new Date(batch.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
+                      {isError && batch.processing_error && (
+                        <div className="mt-2 text-xs font-semibold text-red-600 bg-red-50 p-2 rounded border border-red-100">
+                          Error: {batch.processing_error}
+                        </div>
+                      )}
                     </div>
 
-                    <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset ${
-                      batch.status === 'completed' 
-                        ? 'bg-green-50 text-green-700 ring-green-600/20' 
-                        : 'bg-blue-50 text-[#2563eb] ring-blue-600/20'
-                    }`}>
-                      {batch.status}
-                    </span>
+                    {isError ? (
+                      <span className="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/20">
+                        Error
+                      </span>
+                    ) : isProcessing ? (
+                      <span className="inline-flex items-center space-x-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-[#2563eb] ring-1 ring-inset ring-blue-600/20 animate-pulse">
+                        <svg className="animate-spin h-3 w-3 text-[#2563eb]" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        <span>Processing...</span>
+                      </span>
+                    ) : isCompleted ? (
+                      <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
+                        Completed
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-[#2563eb] ring-1 ring-inset ring-blue-600/20">
+                        Open
+                      </span>
+                    )}
                   </div>
 
-                  {/* Card Body (4-column mini grid) */}
-                  <div className="p-5 flex-1">
-                    <div className="grid grid-cols-4 gap-2">
-                      <div className="text-center">
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Claims</span>
-                        <span className="block mt-1 font-bold text-[#0a1628] text-sm">{batch.total_claims}</span>
-                      </div>
-                      <div className="text-center">
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Approved</span>
-                        <span className="block mt-1 font-bold text-[#0a1628] text-sm">{batch.approved_count}</span>
-                      </div>
-                      <div className="text-center">
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Manual</span>
-                        <span className="block mt-1 font-bold text-[#0a1628] text-sm">{batch.manual_review_count}</span>
-                      </div>
-                      <div className="text-center">
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Uplift</span>
-                        <span className="block mt-1 font-bold text-[#2563eb] text-sm truncate" title={formatCurrency(batch.total_uplift)}>
-                          {formatCurrency(batch.total_uplift)}
+                  {/* Card Body */}
+                  <div className="p-5 flex-1 flex flex-col justify-center">
+                    {isProcessing ? (
+                      <div className="space-y-2 py-2">
+                        <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-[#2563eb] h-1.5 rounded-full animate-pulse w-full"></div>
+                        </div>
+                        <span className="block text-center text-xs text-gray-400 font-semibold animate-pulse">
+                          Running rules engine...
                         </span>
                       </div>
-                    </div>
+                    ) : isError ? (
+                      <div className="text-center py-2 text-xs text-gray-500 font-medium">
+                        Processing was interrupted. Please delete and re-upload.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="text-center">
+                          <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Claims</span>
+                          <span className="block mt-1 font-bold text-[#0a1628] text-sm">{batch.total_claims}</span>
+                        </div>
+                        <div className="text-center">
+                          <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Approved</span>
+                          <span className="block mt-1 font-bold text-[#0a1628] text-sm">{batch.approved_count}</span>
+                        </div>
+                        <div className="text-center">
+                          <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Manual</span>
+                          <span className="block mt-1 font-bold text-[#0a1628] text-sm">{batch.manual_review_count}</span>
+                        </div>
+                        <div className="text-center">
+                          <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Uplift</span>
+                          <span className="block mt-1 font-bold text-[#2563eb] text-sm truncate" title={formatCurrency(batch.total_uplift)}>
+                            {formatCurrency(batch.total_uplift)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Card Action */}
                   <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end">
-                    <Link 
-                      href={`/dashboard/batch/${batch.id}`} 
-                      className="inline-flex justify-center items-center bg-[#0a1628] hover:bg-[#12253f] text-white px-4 py-1.5 rounded-md text-xs font-bold transition-colors"
-                    >
-                      View Details
-                    </Link>
+                    {isProcessing ? (
+                      <button 
+                        disabled
+                        className="inline-flex justify-center items-center bg-gray-100 text-gray-400 px-4 py-1.5 rounded-md text-xs font-bold cursor-not-allowed"
+                      >
+                        Processing...
+                      </button>
+                    ) : isError ? (
+                      <button 
+                        disabled
+                        className="inline-flex justify-center items-center bg-red-50 text-red-400 px-4 py-1.5 rounded-md text-xs font-bold cursor-not-allowed"
+                      >
+                        Failed
+                      </button>
+                    ) : (
+                      <Link 
+                        href={`/dashboard/batch/${batch.id}`} 
+                        className="inline-flex justify-center items-center bg-[#0a1628] hover:bg-[#12253f] text-white px-4 py-1.5 rounded-md text-xs font-bold transition-colors"
+                      >
+                        View Details
+                      </Link>
+                    )}
                   </div>
                 </div>
               )

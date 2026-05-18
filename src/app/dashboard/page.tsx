@@ -21,12 +21,12 @@ export default async function DashboardPage() {
     return <div className="p-8 text-red-500">Error: Profile or client_id not found.</div>
   }
 
-  // Fetch initial active (open) batches
+  // Fetch initial active (open or processing) batches
   const { data: batchesData } = await supabase
     .from('batches')
     .select('*')
     .eq('client_id', profile.client_id)
-    .eq('status', 'open')
+    .in('status', ['open', 'processing'])
     .order('created_at', { ascending: false })
 
   const batches = (batchesData || []) as unknown as BatchData[]
