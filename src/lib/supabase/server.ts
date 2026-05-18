@@ -31,6 +31,24 @@ export function createClient() {
           }
         },
       },
+      global: {
+        fetch: async (url, options) => {
+          const timeout = 15000 // 15 seconds connection timeout
+          const controller = new AbortController()
+          const id = setTimeout(() => controller.abort(), timeout)
+          try {
+            const response = await fetch(url, {
+              ...options,
+              signal: controller.signal
+            })
+            clearTimeout(id)
+            return response
+          } catch {
+            clearTimeout(id)
+            throw new Error('Supabase fetch timed out or failed')
+          }
+        }
+      }
     }
   )
 }

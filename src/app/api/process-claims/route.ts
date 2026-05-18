@@ -52,25 +52,61 @@ export async function POST(request: NextRequest) {
     }
 
     // STEP 1 - Bulk fetch all needed data upfront before processing any claims
-    // Fetch all active prefixes
-    const { data: activePrefixes } = await supabase
-      .from('alpha_prefix_reference')
-      .select('*')
-      .eq('is_active', true)
+    // Fetch all active prefixes with retry logic (up to 3 attempts total)
+    let activePrefixes: Record<string, unknown>[] | null = null
+    let prefixAttempts = 0
+    while (prefixAttempts < 3) {
+      try {
+        const { data, error } = await supabase
+          .from('alpha_prefix_reference')
+          .select('*')
+          .eq('is_active', true)
 
-    // Fetch all client contracts
-    const { data: clientContracts } = await supabase
-      .from('plan_contracts')
-      .select('*')
-      .eq('client_id', profile.client_id)
+        if (error) {
+          console.warn(`[prefix fetch] Attempt ${prefixAttempts + 1} failed:`, error.message)
+        } else if (!data || data.length === 0) {
+          console.warn(`[prefix fetch] Attempt ${prefixAttempts + 1} returned empty data`)
+        } else {
+          activePrefixes = data as unknown as Record<string, unknown>[]
+          break
+        }
+      } catch {
+        console.warn(`[prefix fetch] Attempt ${prefixAttempts + 1} encountered a connection/network error`)
+      }
+
+      prefixAttempts++
+      if (prefixAttempts < 3) {
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    }
 
     const prefixMap = new Map<string, Record<string, unknown>>()
     if (activePrefixes) {
       activePrefixes.forEach(p => {
         if (p.prefix) {
-          prefixMap.set(p.prefix, p as unknown as Record<string, unknown>)
+          prefixMap.set(p.prefix as string, p)
         }
       })
+    }
+
+    // If prefixMap is empty after all retries, return a 503 error
+    if (prefixMap.size === 0) {
+      console.error('[Error Step: prefix fetch] prefixMap is empty after all retries')
+      return NextResponse.json(
+        { error: 'Service temporarily unavailable - please try again in a moment' },
+        { status: 503 }
+      )
+    }
+
+    // Fetch all client contracts
+    const { data: clientContracts, error: contractError } = await supabase
+      .from('plan_contracts')
+      .select('*')
+      .eq('client_id', profile.client_id)
+
+    if (contractError) {
+      console.error('[Error Step: contract fetch] Failed to fetch client contracts:', contractError.message)
+      throw new Error(`Failed to fetch client contracts: ${contractError.message}`)
     }
 
     const contractMap = new Map<string, Record<string, unknown>>()
@@ -298,6 +334,7 @@ export async function POST(request: NextRequest) {
         .insert(decisionsToInsert)
 
       if (insertError) {
+        console.error('[Error Step: bulk insert] Failed to insert routing decisions:', insertError.message)
         throw new Error(`Failed to insert routing decisions: ${insertError.message}`)
       }
     }
@@ -309,6 +346,7 @@ export async function POST(request: NextRequest) {
         .in('id', processedClaimIds)
 
       if (updateError) {
+        console.error('[Error Step: status update] Failed to update claims status:', updateError.message)
         throw new Error(`Failed to update claims status: ${updateError.message}`)
       }
     }
@@ -333,6 +371,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch {
+    console.error('[Error Step: processing pipeline] Processing failed. Rolling back all routing decisions...')
     if (batchIdToRollback) {
       // 1. Delete all routing decisions for that batch_id
       await supabase
