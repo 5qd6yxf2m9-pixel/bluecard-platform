@@ -11,6 +11,12 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        electric: "#0066FF",
+        navy: "#0A192F",
+      },
+      fontFamily: {
+        sans: ['var(--font-inter)', 'sans-serif'],
+        display: ['var(--font-dm-sans)', 'sans-serif'],
       },
     },
   },
