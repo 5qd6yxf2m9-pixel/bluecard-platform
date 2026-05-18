@@ -25,14 +25,110 @@ export async function POST(request: NextRequest) {
 
     // 3. Parse JSON body
     const body = await request.json() as Record<string, unknown>
+    const claim_id = body.claim_id as string
     const batch_id = body.batch_id as string
-
-    if (!batch_id) {
-      return NextResponse.json({ error: 'batch_id is required' }, { status: 400 })
-    }
 
     if (!profile.client_id) {
       return NextResponse.json({ error: 'Profile has no client_id' }, { status: 400 })
+    }
+
+    if (claim_id) {
+      // Fetch that single claim
+      const { data: claim, error: fetchError } = await supabase
+        .from('claims')
+        .select('*')
+        .eq('client_id', profile.client_id)
+        .eq('id', claim_id)
+        .single()
+
+      if (fetchError || !claim) {
+        return NextResponse.json({ error: 'Claim not found' }, { status: 404 })
+      }
+
+      // Update status to pending
+      const { error: updatePendingError } = await supabase
+        .from('claims')
+        .update({ status: 'pending' })
+        .eq('id', claim_id)
+
+      if (updatePendingError) {
+        return NextResponse.json({ error: 'Failed to update claim status to pending' }, { status: 500 })
+      }
+
+      // Process claim
+      const decisionResult = await processClain(claim, supabase)
+
+      // Delete any existing routing decision for safety
+      await supabase
+        .from('routing_decisions')
+        .delete()
+        .eq('claim_id', claim_id)
+
+      // Insert routing decision
+      const { error: insertError } = await supabase
+        .from('routing_decisions')
+        .insert({
+          batch_id: claim.batch_id,
+          claim_id: claim.id,
+          decision: decisionResult.decision,
+          reason: decisionResult.reason,
+          recommended_plan: decisionResult.recommended_plan || null,
+          alternate_plan: decisionResult.alternate_plan || null,
+          uplift_amount: decisionResult.uplift_amount || null,
+          anthem_expected: decisionResult.anthem_expected || null,
+          blueshield_expected: decisionResult.blueshield_expected || null,
+          confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
+        })
+
+      if (insertError) {
+        return NextResponse.json({ error: 'Failed to insert routing decision' }, { status: 500 })
+      }
+
+      // Update status to processed
+      const { error: updateProcessedError } = await supabase
+        .from('claims')
+        .update({ status: 'processed' })
+        .eq('id', claim_id)
+
+      if (updateProcessedError) {
+        return NextResponse.json({ error: 'Failed to update claim status to processed' }, { status: 500 })
+      }
+
+      // Recalculate batch stats
+      const { count: approvedCount } = await supabase
+        .from('routing_decisions')
+        .select('*', { count: 'exact', head: true })
+        .eq('batch_id', claim.batch_id)
+        .eq('decision', 'approved')
+
+      const { count: manualReviewCount } = await supabase
+        .from('routing_decisions')
+        .select('*', { count: 'exact', head: true })
+        .eq('batch_id', claim.batch_id)
+        .eq('decision', 'manual_review')
+
+      const { data: upliftData } = await supabase
+        .from('routing_decisions')
+        .select('uplift_amount')
+        .eq('batch_id', claim.batch_id)
+        .eq('decision', 'approved')
+
+      const totalUplift = (upliftData || []).reduce((sum, item) => sum + (item.uplift_amount || 0), 0)
+
+      await supabase
+        .from('batches')
+        .update({
+          approved_count: approvedCount || 0,
+          manual_review_count: manualReviewCount || 0,
+          total_uplift: totalUplift || 0
+        })
+        .eq('id', claim.batch_id)
+
+      return NextResponse.json({ message: 'Claim processed successfully', decision: decisionResult.decision })
+    }
+
+    if (!batch_id) {
+      return NextResponse.json({ error: 'batch_id is required' }, { status: 400 })
     }
 
     // 4. Get all claims for the batch

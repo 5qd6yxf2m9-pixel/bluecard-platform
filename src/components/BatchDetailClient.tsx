@@ -179,6 +179,47 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
     }
   }
 
+  const handleProcessAnyway = async (claimId: string) => {
+    try {
+      const res = await fetch('/api/process-claims', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claim_id: claimId })
+      })
+
+      const data = await res.json() as Record<string, unknown>
+      if (!res.ok) throw new Error(String(data.error || 'Failed to process claim'))
+
+      await fetchClaims()
+      await fetchStats()
+
+      const decision = String(data.decision || '')
+      if (decision === 'manual_review') {
+        setTab('manual_review')
+      } else {
+        setTab('routing_decisions')
+      }
+    } catch {
+      alert('Failed to process claim.')
+    }
+  }
+
+  const handleDismissClaim = async (claimId: string) => {
+    try {
+      const { error } = await supabase
+        .from('claims')
+        .update({ status: 'dismissed' })
+        .eq('id', claimId)
+
+      if (error) throw error
+
+      await fetchClaims()
+      await fetchStats()
+    } catch {
+      alert('Failed to dismiss claim.')
+    }
+  }
+
   const markComplete = async () => {
     try {
       const { error } = await supabase
@@ -443,6 +484,24 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
             />
           </div>
 
+          {/* DUPLICATE WARNING NOTE */}
+          {tab === 'duplicates' && (
+            <div className="bg-yellow-50 border-b border-yellow-100 px-6 py-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-semibold text-yellow-800">
+                    These claims match a patient ID and date of service already processed in a previous batch. Review before processing.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             {loading ? (
               <div className="px-4 py-24 text-center text-sm text-gray-500">
@@ -465,6 +524,9 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                         <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">DOS</th>
                         <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Charge</th>
                         <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Note</th>
+                        <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6 w-[220px]">
+                          <span className="sr-only">Actions</span>
+                        </th>
                       </>
                     ) : (
                       <>
@@ -511,6 +573,20 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{formatCurrency(claim.charge_amount)}</td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm font-semibold text-amber-600">
                             Previously processed in another batch
+                          </td>
+                          <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
+                            <button
+                              onClick={() => handleProcessAnyway(claim.id)}
+                              className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-indigo-600 shadow-sm ring-1 ring-inset ring-indigo-300 hover:bg-indigo-50"
+                            >
+                              Process Anyway
+                            </button>
+                            <button
+                              onClick={() => handleDismissClaim(claim.id)}
+                              className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 shadow-sm ring-1 ring-inset ring-red-300 hover:bg-red-50"
+                            >
+                              Dismiss
+                            </button>
                           </td>
                         </tr>
                       )
