@@ -498,7 +498,8 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                             if (claim.dos) {
                               const parts = claim.dos.split('-');
                               if (parts.length === 3) {
-                                formattedDos = `${parts[1]}/${parts[2]}/${parts[0]}`;
+                                const shortYear = parts[0].slice(-2);
+                                formattedDos = `${parts[1]}/${parts[2]}/${shortYear}`;
                               } else {
                                 formattedDos = claim.dos;
                               }
