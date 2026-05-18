@@ -3,6 +3,89 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
+function HeroAnimation() {
+  const [phase, setPhase] = useState(0)
+  const [claimNum, setClaimNum] = useState(2847)
+  const [amount, setAmount] = useState(4200)
+
+  useEffect(() => {
+    const cycle = () => {
+      setPhase(0)
+      setTimeout(() => {
+        setClaimNum(Math.floor(Math.random() * 8000) + 1000)
+        setAmount(Math.floor(Math.random() * 5000) + 1500)
+        setPhase(1)
+      }, 500)
+      setTimeout(() => setPhase(2), 1500)
+      setTimeout(() => setPhase(3), 2500)
+      setTimeout(() => setPhase(4), 4500)
+    }
+
+    cycle()
+    const interval = setInterval(cycle, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const anthemAmt = Math.floor(amount * 0.85)
+  const bsAmt = Math.floor(amount * 0.78)
+  const uplift = anthemAmt - bsAmt
+
+  const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val)
+
+  return (
+    <div className="relative w-full max-w-md mx-auto aspect-[4/3] flex items-center justify-center perspective-1000">
+      <div className={`w-full bg-white rounded-xl shadow-2xl shadow-navy/10 border border-gray-100 p-6 transition-all duration-500 transform ${phase === 0 || phase === 4 ? 'opacity-0 translate-y-4 scale-95' : 'opacity-100 translate-y-0 scale-100'}`}>
+        
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
+          <div>
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Incoming Claim</div>
+            <div className="font-display font-bold text-lg text-navy">#PT{claimNum} | PPO</div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Billed Charge</div>
+            <div className="font-display font-bold text-xl text-gray-900">{formatCurrency(amount)}</div>
+          </div>
+        </div>
+
+        {/* Comparisons */}
+        <div className="space-y-3 relative">
+          {/* Blue Shield Row */}
+          <div className={`flex justify-between items-center p-3 rounded-lg border transition-all duration-500 ${phase >= 2 ? 'opacity-100 border-gray-200 bg-gray-50' : 'opacity-0 border-transparent bg-transparent'}`}>
+            <div className="font-medium text-gray-600">Blue Shield of CA</div>
+            <div className="font-bold text-gray-900">{formatCurrency(bsAmt)}</div>
+          </div>
+
+          {/* Anthem Row (Winner) */}
+          <div className={`flex justify-between items-center p-3 rounded-lg border transition-all duration-500 relative ${phase >= 3 ? 'opacity-100 border-electric bg-blue-50/50 shadow-[0_0_15px_rgba(0,102,255,0.15)] scale-[1.02]' : phase >= 2 ? 'opacity-100 border-gray-200 bg-gray-50 scale-100' : 'opacity-0 border-transparent bg-transparent scale-100'}`}>
+            <div className="flex items-center space-x-2">
+              <div className="font-medium text-navy">Anthem Blue Cross</div>
+              <div className={`transition-all duration-300 ${phase >= 3 ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                <div className="flex items-center space-x-1 bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Route</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className={`transition-all duration-500 ${phase >= 3 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'}`}>
+                <span className="bg-electric text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                  +{formatCurrency(uplift)}
+                </span>
+              </div>
+              <div className={`font-bold transition-colors duration-300 ${phase >= 3 ? 'text-electric' : 'text-gray-900'}`}>
+                {formatCurrency(anthemAmt)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function LandingClient() {
   const [scrolled, setScrolled] = useState(false)
   const sectionsRef = useRef<(HTMLElement | null)[]>([])
@@ -51,7 +134,7 @@ export function LandingClient() {
             <a href="#how-it-works" className="hover:text-electric transition-colors">How It Works</a>
             <a href="#features" className="hover:text-electric transition-colors">Features</a>
             <a href="#results" className="hover:text-electric transition-colors">Results</a>
-            <Link href="/login" className="bg-navy text-white px-5 py-2.5 rounded-md hover:bg-electric transition-all duration-300 hover:scale-[1.02]">
+            <Link href="/contact" className="bg-navy text-white px-5 py-2.5 rounded-md hover:bg-electric transition-all duration-300 hover:scale-[1.02]">
               Request Demo
             </Link>
           </div>
@@ -59,37 +142,45 @@ export function LandingClient() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex flex-col justify-center pt-20 px-6 md:px-12 overflow-hidden">
+      <section className="relative min-h-screen flex flex-col justify-center pt-24 pb-12 px-6 md:px-12 overflow-hidden">
         {/* Subtle dot background */}
         <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] opacity-40 -z-10" />
         
-        <div className="max-w-5xl mx-auto text-center animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 fill-mode-both">
-          <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tight text-navy mb-6 leading-tight">
-            Stop Leaving Money<br className="hidden md:block" /> on the Table.
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-600 mb-10 max-w-3xl mx-auto font-light leading-relaxed">
-            BlueCard Platform automatically routes your BCBS claims to the highest-paying local plan — before you bill.
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-16">
-            <Link href="/login" className="w-full sm:w-auto bg-navy text-white px-8 py-4 rounded-md font-medium text-lg hover:bg-electric transition-all duration-300 hover:scale-[1.02] shadow-lg shadow-electric/10">
-              Request a Demo
-            </Link>
-            <a href="#how-it-works" className="w-full sm:w-auto bg-white text-navy border border-gray-300 px-8 py-4 rounded-md font-medium text-lg hover:bg-gray-50 transition-all duration-300 hover:scale-[1.02]">
-              See How It Works
-            </a>
-          </div>
+        <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           
-          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-6">
-            <div className="animate-in fade-in duration-700 delay-[500ms] fill-mode-both px-4 py-2 bg-white rounded-full border border-gray-200 text-sm font-medium text-gray-700 shadow-sm">
-              <span className="text-electric font-bold">$5.5M</span> recovered for clients
+          <div className="text-center lg:text-left animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 fill-mode-both">
+            <h1 className="font-display text-5xl md:text-6xl xl:text-7xl font-bold tracking-tight text-navy mb-6 leading-tight">
+              Stop Leaving Money<br className="hidden md:block" /> on the Table.
+            </h1>
+            <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto lg:mx-0 font-light leading-relaxed">
+              BlueCard Platform automatically routes your BCBS claims to the highest-paying local plan — before you bill.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center lg:justify-start items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-12">
+              <Link href="/contact" className="w-full sm:w-auto bg-navy text-white px-8 py-4 rounded-md font-medium text-lg hover:bg-electric transition-all duration-300 hover:scale-[1.02] shadow-lg shadow-electric/10 text-center">
+                Request a Demo
+              </Link>
+              <a href="#how-it-works" className="w-full sm:w-auto bg-white text-navy border border-gray-300 px-8 py-4 rounded-md font-medium text-lg hover:bg-gray-50 transition-all duration-300 hover:scale-[1.02] text-center">
+                See How It Works
+              </a>
             </div>
-            <div className="animate-in fade-in duration-700 delay-[600ms] fill-mode-both px-4 py-2 bg-white rounded-full border border-gray-200 text-sm font-medium text-gray-700 shadow-sm">
-              <span className="text-electric font-bold">2,744</span> prefixes validated
-            </div>
-            <div className="animate-in fade-in duration-700 delay-[700ms] fill-mode-both px-4 py-2 bg-white rounded-full border border-gray-200 text-sm font-medium text-gray-700 shadow-sm">
-              <span className="text-electric font-bold">4</span> approved in seconds
+            
+            <div className="flex flex-col sm:flex-row justify-center lg:justify-start items-center gap-4">
+              <div className="animate-in fade-in duration-700 delay-[500ms] fill-mode-both px-4 py-2 bg-white rounded-full border border-gray-200 text-sm font-medium text-gray-700 shadow-sm">
+                <span className="text-electric font-bold">$5.5M</span> recovered for clients
+              </div>
+              <div className="animate-in fade-in duration-700 delay-[600ms] fill-mode-both px-4 py-2 bg-white rounded-full border border-gray-200 text-sm font-medium text-gray-700 shadow-sm">
+                <span className="text-electric font-bold">2,744</span> prefixes validated
+              </div>
+              <div className="animate-in fade-in duration-700 delay-[700ms] fill-mode-both px-4 py-2 bg-white rounded-full border border-gray-200 text-sm font-medium text-gray-700 shadow-sm">
+                <span className="text-electric font-bold">4</span> approved in seconds
+              </div>
             </div>
           </div>
+
+          <div className="animate-in fade-in slide-in-from-right-8 duration-1000 delay-500 fill-mode-both mt-12 lg:mt-0">
+            <HeroAnimation />
+          </div>
+
         </div>
       </section>
 
@@ -198,7 +289,7 @@ export function LandingClient() {
         <div className="max-w-3xl mx-auto">
           <h2 className="font-display text-4xl md:text-5xl font-bold mb-6 text-navy">Ready to get paid right?</h2>
           <p className="text-xl text-gray-600 mb-10 font-light">Meet with our team to see how BlueCard Platform works for your organization.</p>
-          <Link href="/login" className="inline-block bg-navy text-white px-10 py-5 rounded-md font-medium text-lg hover:bg-electric transition-all duration-300 hover:scale-[1.02] shadow-xl shadow-electric/10 mb-6">
+          <Link href="/contact" className="inline-block bg-navy text-white px-10 py-5 rounded-md font-medium text-lg hover:bg-electric transition-all duration-300 hover:scale-[1.02] shadow-xl shadow-electric/10 mb-6">
             Request a Demo
           </Link>
           <p className="text-sm text-gray-500">No commitment required. Results in weeks, not months.</p>
