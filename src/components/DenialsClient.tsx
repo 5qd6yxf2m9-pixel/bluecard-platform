@@ -484,21 +484,21 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Denied Dollars</div>
-            <div className="mt-2 text-3xl font-extrabold text-[#dc2626] font-display">
+            <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#dc2626] font-display">
               {formatCurrency(totalDeniedDollars)}
             </div>
           </div>
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Claims Count</div>
-            <div className="mt-2 text-3xl font-extrabold text-[#0a1628] font-display">{totalClaims}</div>
+            <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#0a1628] font-display">{totalClaims}</div>
           </div>
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Denial Rate</div>
-            <div className="mt-2 text-3xl font-extrabold text-[#0a1628] font-display">{denialRate.toFixed(1)}%</div>
+            <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#0a1628] font-display">{denialRate.toFixed(1)}%</div>
           </div>
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recoverable Opportunities</div>
-            <div className="mt-2 text-3xl font-extrabold text-[#16a34a] font-display">{recoverableOpportunities}</div>
+            <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#16a34a] font-display">{recoverableOpportunities}</div>
           </div>
         </div>
 
@@ -553,7 +553,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
             </h2>
             
             {/* Row 1 */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {/* Top 5 CARCs */}
               <div className="bg-white p-6 rounded-xl border border-[#e2e8f0] shadow-sm">
                 <h3 className="font-bold text-sm text-gray-900 mb-4">Top 5 Denial Reasons by CARC Code</h3>
@@ -563,7 +563,11 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="code" />
                       <YAxis allowDecimals={false} />
-                      <Tooltip />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                        labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                        itemStyle={{ color: '#93c5fd' }}
+                      />
                       <Legend />
                       <Bar dataKey="value" name="Claims" fill="#2563eb" radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -580,7 +584,12 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="name" />
                       <YAxis tickFormatter={(v: number) => formatCurrency(v)} />
-                      <Tooltip formatter={(v: unknown) => formatCurrency(Number(v))} />
+                      <Tooltip
+                        formatter={(v: unknown) => formatCurrency(Number(v))}
+                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                        labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                        itemStyle={{ color: '#93c5fd' }}
+                      />
                       <Legend />
                       <Bar dataKey="value" name="Denied Amount" fill="#0a1628" radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -590,7 +599,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
             </div>
 
             {/* Row 2 */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {/* Category Pie */}
               <div className="bg-white p-6 rounded-xl border border-[#e2e8f0] shadow-sm">
                 <h3 className="font-bold text-sm text-gray-900 mb-4">Denial Categories Breakdown</h3>
@@ -611,7 +620,11 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                          labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                          itemStyle={{ color: '#93c5fd' }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -636,7 +649,11 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="name" />
                       <YAxis allowDecimals={false} />
-                      <Tooltip />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                        labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                        itemStyle={{ color: '#93c5fd' }}
+                      />
                       <Legend />
                       <Bar dataKey="value" name="Claims" fill="#16a34a" radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -705,7 +722,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">CARC / Category</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Action Plan</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[200px]">Action</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -719,7 +736,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                     paginatedClaims.map(c => {
                       const denied = (Number(c.billed_amount) || 0) - (Number(c.paid_amount) || 0)
                       return (
-                        <tr key={c.id} className="hover:bg-gray-50/50 transition-colors text-sm">
+                        <tr key={c.id} className="hover:bg-gray-50/50 transition-colors text-xs md:text-sm">
                           <td className="px-6 py-4">
                             <div className="font-bold text-gray-900">{c.account}</div>
                             <div className="text-xs text-gray-400 font-medium">{c.claim_id}</div>
@@ -755,7 +772,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                               {c.status}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-right whitespace-nowrap">
+                          <td className="px-6 py-4 text-right whitespace-nowrap min-w-[200px]">
                             <div className="flex justify-end items-center gap-1.5">
                               <button
                                 onClick={() => handleUpdateStatus(c.id, 'appealed')}
