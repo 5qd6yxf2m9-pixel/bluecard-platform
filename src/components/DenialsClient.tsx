@@ -43,6 +43,28 @@ export interface DenialClaim {
   status: 'open' | 'appealed' | 'resolved';
 }
 
+export const standardizeCategory = (cat: string | null | undefined): string => {
+  if (!cat) return 'Other'
+  const catLower = cat.toLowerCase().trim()
+  if (catLower.includes('eligibility')) return 'Eligibility'
+  if (catLower.includes('duplicate')) return 'Duplicate'
+  if (catLower.includes('timely') || catLower.includes('filing')) return 'Timely Filing'
+  if (catLower.includes('necessity') || catLower.includes('medical')) return 'Medical Necessity'
+  if (catLower.includes('auth') || catLower.includes('authorization') || catLower.includes('prior')) return 'Authorization'
+  if (catLower.includes('patient') || catLower.includes('responsibility') || catLower.includes('deductible') || catLower.includes('coinsurance')) return 'Patient Responsibility'
+  if (catLower.includes('contractual') || catLower.includes('contract')) return 'Contractual'
+  if (catLower.includes('cob') || catLower.includes('coordination') || catLower.includes('benefit')) return 'COB'
+  if (catLower.includes('billing') || catLower.includes('error') || catLower.includes('coding')) return 'Billing Error'
+  if (catLower.includes('coverage') || catLower.includes('plan')) return 'Coverage'
+  
+  const valid = [
+    'Eligibility', 'Duplicate', 'Timely Filing', 'Medical Necessity', 
+    'Authorization', 'Patient Responsibility', 'Contractual', 'COB', 
+    'Billing Error', 'Coverage', 'Other'
+  ]
+  return valid.find(v => v.toLowerCase() === catLower) || 'Other'
+}
+
 interface DenialsClientProps {
   clientId: string;
   userEmail: string;
@@ -248,15 +270,17 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
           .select('denial_code, recommended_action')
           .in('denial_code', uniqueCarcs)
 
-        const mappingMap = new Map(mappingsData?.map(m => [m.denial_code, m]) || [])
-        const ruleMap = new Map(rulesData?.map(r => [r.denial_code, r.recommended_action]) || [])
+        const mappingMap = new Map(mappingsData?.map(m => [String(m.denial_code).trim().toUpperCase(), m]) || [])
+        const ruleMap = new Map(rulesData?.map(r => [String(r.denial_code).trim().toUpperCase(), r.recommended_action]) || [])
 
         // Map resolved data and setup insert payloads
         const claimsToInsert = rawRecords.map(r => {
-          const mapping = mappingMap.get(r.carc_code)
-          const category = mapping?.category || 'Other'
+          const carcLookupKey = String(r.carc_code).trim().toUpperCase()
+          const mapping = mappingMap.get(carcLookupKey)
+          const rawCategory = mapping?.category || 'Other'
+          const category = standardizeCategory(rawCategory)
           const rootCause = mapping?.subcategory || 'Other / Unknown'
-          const recommendedAction = ruleMap.get(r.carc_code) || 'Verify timely submission parameters and re-bill.'
+          const recommendedAction = ruleMap.get(carcLookupKey) || 'Verify timely submission parameters and re-bill.'
 
           return {
             ...r,
@@ -333,7 +357,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
 
     const matchesCategory =
       categoryFilter === 'All' ||
-      c.category?.toLowerCase() === categoryFilter.toLowerCase()
+      standardizeCategory(c.category).toLowerCase() === categoryFilter.toLowerCase()
 
     return matchesSearch && matchesCategory
   })
@@ -373,7 +397,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   const getCategoryPieData = () => {
     const counts: Record<string, number> = {}
     initialClaims.forEach(c => {
-      const cat = c.category || 'Other'
+      const cat = standardizeCategory(c.category)
       counts[cat] = (counts[cat] || 0) + 1
     })
     return Object.entries(counts).map(([name, value]) => ({ name, value }))
@@ -655,7 +679,13 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                 <option value="Duplicate">Duplicate</option>
                 <option value="Timely Filing">Timely Filing</option>
                 <option value="Medical Necessity">Medical Necessity</option>
-                <option value="Auth">Auth</option>
+                <option value="Authorization">Authorization</option>
+                <option value="Patient Responsibility">Patient Responsibility</option>
+                <option value="Contractual">Contractual</option>
+                <option value="COB">COB</option>
+                <option value="Billing Error">Billing Error</option>
+                <option value="Coverage">Coverage</option>
+                <option value="Other">Other</option>
               </select>
             </div>
           </div>
