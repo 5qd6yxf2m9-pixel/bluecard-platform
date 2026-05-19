@@ -65,13 +65,13 @@ export default function ContactPage() {
       <div className="w-full max-w-md space-y-8">
         <div>
           <Link href="/" className="flex justify-center mb-8">
-            <span className="font-display font-bold text-2xl tracking-tight text-navy">BlueCard Platform</span>
+            <span className="font-display font-bold text-2xl tracking-tight text-navy">RevenueLogic</span>
           </Link>
           <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-navy font-display">
             Request a Demo
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            See how much you could be recovering with automated prebill routing.
+            See how much you could be recovering with automated revenue cycle intelligence.
           </p>
         </div>
 

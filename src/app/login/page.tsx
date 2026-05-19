@@ -48,14 +48,14 @@ export default function LoginPage() {
         {/* Logo at the top */}
         <div>
           <Link href="/" className="font-display font-bold text-xl tracking-tight text-white hover:text-electric transition-colors">
-            BlueCard Platform
+            RevenueLogic
           </Link>
         </div>
 
         {/* Center Quote/Statement */}
         <div className="my-auto max-w-md">
           <h1 className="font-display text-4xl font-bold leading-tight mb-8">
-            Route every BlueCard claim to the highest-paying plan. Automatically.
+            Maximize your healthcare reimbursement. Automatically.
           </h1>
         </div>
 
@@ -79,7 +79,7 @@ export default function LoginPage() {
           <div>
             <div className="flex lg:hidden mb-8">
               <Link href="/" className="font-display font-bold text-xl tracking-tight text-navy">
-                BlueCard Platform
+                RevenueLogic
               </Link>
             </div>
             <span className="text-xs font-bold tracking-widest text-gray-400 uppercase">Welcome back</span>

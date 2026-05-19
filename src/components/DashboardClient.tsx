@@ -395,13 +395,16 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
       {/* HEADER */}
       <header className="bg-[#0a1628] shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <Link href="/dashboard" className="text-xl font-bold text-white font-display hover:opacity-90">
-              BlueCard Platform
+          <div className="flex items-center space-x-4">
+            <Link href="/dashboard" className="text-white hover:text-gray-300 flex items-center space-x-2 text-sm font-semibold transition-colors">
+              <span>&larr;</span> <span>Back</span>
             </Link>
+            <span className="text-xl font-bold text-white font-display">
+              BlueCardLogic
+            </span>
             {role === 'admin' && (
               <Link href="/admin" className="ml-4 text-sm font-semibold text-[#2563eb] hover:text-blue-400 transition-colors">
-                Admin Dashboard
+                Admin Panel
               </Link>
             )}
           </div>
@@ -485,7 +488,7 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
               {/* Modal Body */}
               <div className="p-6 space-y-4">
                 <p className="text-sm text-gray-500">
-                  Drag and drop a CSV file containing claims data. The BlueCard Platform will process it instantly using our custom rules engine.
+                  Drag and drop a CSV file containing claims data. RevenueLogic will process it instantly using our custom rules engine.
                 </p>
 
                 <div 
@@ -698,7 +701,7 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
                       </button>
                     ) : (
                       <Link 
-                        href={`/dashboard/batch/${batch.id}`} 
+                        href={`/dashboard/bluecard/batch/${batch.id}`} 
                         className="inline-flex justify-center items-center bg-[#0a1628] hover:bg-[#12253f] text-white px-4 py-1.5 rounded-md text-xs font-bold transition-colors"
                       >
                         View Details

@@ -7,7 +7,7 @@ export default function PrivacyPage() {
       <nav className="fixed top-0 w-full z-50 bg-white/85 backdrop-blur-md border-b border-gray-200 py-4 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 md:px-12 flex justify-between items-center">
           <Link href="/" className="font-display font-bold text-xl tracking-tight text-[#0a1628] hover:text-[#2563eb] transition-colors">
-            BlueCard Platform
+            RevenueLogic
           </Link>
           <div className="hidden md:flex space-x-8 items-center text-sm font-medium">
             <Link href="/#how-it-works" className="text-gray-600 hover:text-[#2563eb] transition-colors">How It Works</Link>
@@ -75,7 +75,7 @@ export default function PrivacyPage() {
           <section className="space-y-4">
             <h2 className="text-2xl font-bold text-[#0a1628]">HIPAA Compliance</h2>
             <p>
-              As a provider-facing prebill routing solution, BlueCard Platform acts as a Business Associate under the Health Insurance Portability and Accountability Act (HIPAA).
+              As a provider-facing prebill routing solution, RevenueLogic acts as a Business Associate under the Health Insurance Portability and Accountability Act (HIPAA).
             </p>
             <p>
               We are fully committed to protecting Protected Health Information (PHI). We enter into Business Associate Agreements (BAAs) with all of our clients, ensuring full adherence to HIPAA Privacy, Security, and Breach Notification Rules.
@@ -89,8 +89,8 @@ export default function PrivacyPage() {
               If you have any questions or concerns regarding this Privacy Policy, please contact our privacy compliance team:
             </p>
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 space-y-2">
-              <p className="font-semibold text-[#0a1628]">BlueCard Platform Privacy Operations</p>
-              <p>Email: <a href="mailto:privacy@bluecardplatform.com" className="text-[#2563eb] hover:underline">privacy@bluecardplatform.com</a></p>
+              <p className="font-semibold text-[#0a1628]">RevenueLogic Privacy Operations</p>
+              <p>Email: <a href="mailto:privacy@revenuelogic.com" className="text-[#2563eb] hover:underline">privacy@revenuelogic.com</a></p>
               <p>Support URL: <Link href="/contact" className="text-[#2563eb] hover:underline">Contact Support Form</Link></p>
             </div>
           </section>
@@ -101,7 +101,7 @@ export default function PrivacyPage() {
           <Link href="/" className="text-sm font-semibold text-[#2563eb] hover:text-blue-700 flex items-center space-x-2 transition-colors">
             <span>&larr;</span> <span>Back to Home</span>
           </Link>
-          <span className="text-sm text-gray-400">&copy; 2026 BlueCard Platform LLC</span>
+          <span className="text-sm text-gray-400">&copy; 2026 RevenueLogic LLC</span>
         </div>
       </main>
     </div>

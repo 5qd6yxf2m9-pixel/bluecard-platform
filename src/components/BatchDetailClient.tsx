@@ -510,7 +510,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
       <header className="bg-[#0a1628] shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-6">
-            <Link href="/dashboard" className="text-white hover:text-gray-300 flex items-center space-x-2 text-sm font-semibold transition-colors">
+            <Link href="/dashboard/bluecard" className="text-white hover:text-gray-300 flex items-center space-x-2 text-sm font-semibold transition-colors">
               <span>&larr;</span> <span>Back</span>
             </Link>
 

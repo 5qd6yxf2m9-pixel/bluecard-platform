@@ -13,8 +13,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "BlueCard Platform - Prebill Routing",
-  description: "Stop leaving money on the table. Route your BCBS claims to the highest-paying local plan before you bill.",
+  title: "RevenueLogic - Revenue Cycle Intelligence Platform",
+  description: "RevenueLogic automatically routes your BCBS claims to the highest-paying local plan and flags billing exceptions before you bill.",
 };
 
 export default function RootLayout({

@@ -216,7 +216,7 @@ export function LandingClient() {
       {/* Navigation */}
       <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/80 backdrop-blur-md border-b border-gray-200 py-3' : 'bg-transparent py-5'}`}>
         <div className="max-w-7xl mx-auto px-6 md:px-12 flex justify-between items-center">
-          <div className="font-display font-bold text-xl tracking-tight">BlueCard Platform</div>
+          <div className="font-display font-bold text-xl tracking-tight text-navy">RevenueLogic</div>
           <div className="hidden md:flex space-x-8 items-center text-sm font-medium">
             <a href="#how-it-works" className="hover:text-electric transition-colors">How It Works</a>
             <a href="#features" className="hover:text-electric transition-colors">Features</a>
@@ -243,7 +243,7 @@ export function LandingClient() {
               Stop Leaving Money<br className="hidden md:block" /> on the Table.
             </h1>
             <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto lg:mx-0 font-light leading-relaxed">
-              BlueCard Platform automatically routes your BCBS claims to the highest-paying local plan — before you bill.
+              RevenueLogic automatically routes your BCBS claims to the highest-paying local plan and flags billing exceptions — before you bill.
             </p>
             <div className="flex flex-col sm:flex-row justify-center lg:justify-start items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-12">
               <Link href="/contact" className="w-full sm:w-auto bg-navy text-white px-8 py-4 rounded-md font-medium text-lg hover:bg-electric transition-all duration-300 hover:scale-[1.02] shadow-lg shadow-electric/10 text-center">
@@ -368,7 +368,7 @@ export function LandingClient() {
             </div>
             <div className="pt-12 md:pt-0">
               <div className="text-5xl md:text-6xl font-display font-bold text-electric mb-4">100%</div>
-              <div className="text-gray-300 font-medium max-w-xs mx-auto">BlueCard claims analyzed before billing</div>
+              <div className="text-gray-300 font-medium max-w-xs mx-auto">Revenue claims analyzed before billing</div>
             </div>
           </div>
         </div>
@@ -378,7 +378,7 @@ export function LandingClient() {
       <section ref={addToRefs} className="py-32 px-6 md:px-12 bg-white text-center opacity-0 translate-y-8 transition-all duration-1000">
         <div className="max-w-3xl mx-auto">
           <h2 className="font-display text-4xl md:text-5xl font-bold mb-6 text-navy">Ready to get paid right?</h2>
-          <p className="text-xl text-gray-600 mb-10 font-light">Meet with our team to see how BlueCard Platform works for your organization.</p>
+          <p className="text-xl text-gray-600 mb-10 font-light">Meet with our team to see how RevenueLogic works for your organization.</p>
           <Link href="/contact" className="inline-block bg-navy text-white px-10 py-5 rounded-md font-medium text-lg hover:bg-electric transition-all duration-300 hover:scale-[1.02] shadow-xl shadow-electric/10 mb-6">
             Request a Demo
           </Link>
@@ -389,13 +389,13 @@ export function LandingClient() {
       {/* Footer */}
       <footer className="border-t border-gray-200 bg-gray-50 py-12 px-6 md:px-12">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
-          <div className="font-display font-bold text-lg text-navy mb-4 md:mb-0">BlueCard Platform</div>
+          <div className="font-display font-bold text-lg text-navy mb-4 md:mb-0">RevenueLogic</div>
           <div className="flex space-x-6 text-sm text-gray-500 mb-4 md:mb-0">
             <Link href="/privacy" className="hover:text-navy transition-colors">Privacy Policy</Link>
             <Link href="/contact" className="hover:text-navy transition-colors">Contact</Link>
           </div>
           <div className="text-sm text-gray-400">
-            &copy; 2026 BlueCard Platform LLC
+            &copy; 2026 RevenueLogic LLC
           </div>
         </div>
       </footer>
