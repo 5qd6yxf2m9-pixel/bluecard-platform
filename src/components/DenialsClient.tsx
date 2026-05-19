@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -65,6 +65,30 @@ export const standardizeCategory = (cat: string | null | undefined): string => {
   return valid.find(v => v.toLowerCase() === catLower) || 'Other'
 }
 
+export const formatDOS = (dosStr: string | null | undefined): string => {
+  if (!dosStr) return 'N/A'
+  try {
+    const parts = dosStr.split('-')
+    if (parts.length === 3) {
+      // Handles YYYY-MM-DD
+      const y = parts[0].slice(-2)
+      const m = parts[1]
+      const d = parts[2]
+      return `${m}/${d}/${y}`
+    }
+    const date = new Date(dosStr)
+    if (isNaN(date.getTime())) {
+      return dosStr
+    }
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const dd = String(date.getDate()).padStart(2, '0')
+    const yy = String(date.getFullYear()).slice(-2)
+    return `${mm}/${dd}/${yy}`
+  } catch {
+    return dosStr
+  }
+}
+
 interface DenialsClientProps {
   clientId: string;
   userEmail: string;
@@ -86,6 +110,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   const [categoryFilter, setCategoryFilter] = useState('All')
   const [currentPage, setCurrentPage] = useState(1)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -709,26 +734,24 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
 
           {/* Table list */}
           <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
+            <div>
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-[#0a1628]/5">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Account / Claim ID</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Payer / Product</th>
+                    <th className="w-10 px-4 py-4"></th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Account</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Payer</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">DOS</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">CPT</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Billed</th>
                     <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Denied</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">CARC / Category</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Action Plan</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">CARC</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[200px]">Action</th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedClaims.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-12 text-center text-sm text-gray-500 font-semibold">
+                      <td colSpan={8} className="px-6 py-12 text-center text-sm text-gray-500 font-semibold">
                         No denial claims in the current queue matching filters.
                       </td>
                     </tr>
@@ -736,68 +759,163 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                     paginatedClaims.map(c => {
                       const denied = (Number(c.billed_amount) || 0) - (Number(c.paid_amount) || 0)
                       return (
-                        <tr key={c.id} className="hover:bg-gray-50/50 transition-colors text-xs md:text-sm">
-                          <td className="px-6 py-4">
-                            <div className="font-bold text-gray-900">{c.account}</div>
-                            <div className="text-xs text-gray-400 font-medium">{c.claim_id}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="font-semibold text-gray-900">{c.payer}</div>
-                            <div className="text-xs text-gray-400 font-medium">{c.product_type}</div>
-                          </td>
-                          <td className="px-6 py-4 text-gray-500">{c.dos}</td>
-                          <td className="px-6 py-4 text-gray-500">{c.cpt_code}</td>
-                          <td className="px-6 py-4 text-right font-medium text-gray-900">{formatCurrency(c.billed_amount)}</td>
-                          <td className="px-6 py-4 text-right font-bold text-[#dc2626]">{formatCurrency(denied)}</td>
-                          <td className="px-6 py-4">
-                            <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800 ring-1 ring-inset ring-amber-600/20">
-                              {c.carc_code}
-                            </span>
-                            <div className="text-xs text-gray-500 mt-1 font-medium">{c.category}</div>
-                          </td>
-                          <td className="px-6 py-4 max-w-xs">
-                            <div className="font-bold text-xs text-gray-900">{c.root_cause}</div>
-                            <div className="text-xs text-gray-500 truncate" title={c.recommended_action}>
-                              {c.recommended_action}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${
-                              c.status === 'resolved' 
-                                ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' 
-                                : c.status === 'appealed'
-                                ? 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20'
-                                : 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20'
-                            }`}>
-                              {c.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right whitespace-nowrap min-w-[200px]">
-                            <div className="flex justify-end items-center gap-1.5">
+                        <Fragment key={c.id}>
+                          <tr className="hover:bg-gray-50/50 transition-colors text-xs md:text-sm">
+                            <td className="px-4 py-4 text-center">
                               <button
-                                onClick={() => handleUpdateStatus(c.id, 'appealed')}
-                                disabled={updatingId === c.id || c.status === 'appealed'}
-                                className="bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                onClick={() => setExpandedClaimId(expandedClaimId === c.id ? null : c.id)}
+                                className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
                               >
-                                Appeal
+                                <svg
+                                  className={`w-4 h-4 transform transition-transform duration-200 ${expandedClaimId === c.id ? 'rotate-90' : ''}`}
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                </svg>
                               </button>
-                              <button
-                                onClick={() => handleUpdateStatus(c.id, 'resolved')}
-                                disabled={updatingId === c.id || c.status === 'resolved'}
-                                className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
-                              >
-                                Resolve
-                              </button>
-                              <button
-                                onClick={() => handleUpdateStatus(c.id, 'dismissed')}
-                                disabled={updatingId === c.id}
-                                className="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
-                              >
-                                Dismiss
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-bold text-gray-900">{c.account}</div>
+                              <div className="text-xs text-gray-400 font-medium">{c.claim_id}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-gray-900">{c.payer}</div>
+                              <div className="text-xs text-gray-400 font-medium">{c.product_type}</div>
+                            </td>
+                            <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDOS(c.dos)}</td>
+                            <td className="px-6 py-4 text-right font-bold text-[#dc2626]">{formatCurrency(denied)}</td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                                {c.carc_code}
+                              </span>
+                              <div className="text-xs text-gray-500 mt-1 font-medium">{c.category}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${
+                                c.status === 'resolved' 
+                                  ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' 
+                                  : c.status === 'appealed'
+                                  ? 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20'
+                                  : 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20'
+                              }`}>
+                                {c.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right whitespace-nowrap">
+                              <div className="flex justify-end items-center gap-1.5">
+                                <button
+                                  onClick={() => handleUpdateStatus(c.id, 'appealed')}
+                                  disabled={updatingId === c.id || c.status === 'appealed'}
+                                  className="bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                >
+                                  Appeal
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateStatus(c.id, 'resolved')}
+                                  disabled={updatingId === c.id || c.status === 'resolved'}
+                                  className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                >
+                                  Resolve
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateStatus(c.id, 'dismissed')}
+                                  disabled={updatingId === c.id}
+                                  className="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                >
+                                  Dismiss
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          
+                          {/* Expanded Row */}
+                          {expandedClaimId === c.id && (
+                            <tr className="bg-gray-50/50">
+                              <td colSpan={8} className="px-6 py-5 border-b border-gray-200">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-xs md:text-sm">
+                                  
+                                  {/* Section 1: Financials */}
+                                  <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm space-y-2">
+                                    <div className="font-bold text-gray-700 border-b pb-1 mb-2">Financial Breakdown</div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500 font-medium">Billed Amount:</span>
+                                      <span className="font-semibold text-gray-900">{formatCurrency(c.billed_amount)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500 font-medium">Allowed Amount:</span>
+                                      <span className="font-semibold text-gray-900">{formatCurrency(c.allowed_amount)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500 font-medium">Paid Amount:</span>
+                                      <span className="font-semibold text-gray-900">{formatCurrency(c.paid_amount)}</span>
+                                    </div>
+                                    <div className="flex justify-between border-t pt-1 mt-1">
+                                      <span className="text-gray-700 font-bold">Total Denied:</span>
+                                      <span className="font-extrabold text-[#dc2626]">{formatCurrency(denied)}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Section 2: Codes */}
+                                  <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm space-y-2">
+                                    <div className="font-bold text-gray-700 border-b pb-1 mb-2">Code Details</div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500 font-medium">CPT Code:</span>
+                                      <span className="font-semibold text-gray-900">{c.cpt_code || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500 font-medium">Rev Code:</span>
+                                      <span className="font-semibold text-gray-900">{c.rev_code || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500 font-medium">DRG:</span>
+                                      <span className="font-semibold text-gray-900">{c.drg || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500 font-medium">Denial Date:</span>
+                                      <span className="font-semibold text-gray-900">{c.denial_date || 'N/A'}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Section 3: Adjudication */}
+                                  <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm space-y-2">
+                                    <div className="font-bold text-gray-700 border-b pb-1 mb-2">Adjudication & Auth</div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500 font-medium">Auth Present:</span>
+                                      <span className={`font-semibold ${c.auth_present ? 'text-green-600' : 'text-red-500'}`}>
+                                        {c.auth_present ? 'Yes' : 'No'}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500 font-medium">Eligibility:</span>
+                                      <span className="font-semibold text-gray-900">{c.eligibility || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500 font-medium">Group Code:</span>
+                                      <span className="font-semibold text-gray-900">{c.group_code || 'N/A'}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Section 4: Resolution details */}
+                                  <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm space-y-2">
+                                    <div className="font-bold text-gray-700 border-b pb-1 mb-2">Root Cause & Plan</div>
+                                    <div>
+                                      <span className="text-gray-500 font-semibold block text-[10px] uppercase tracking-wider">Root Cause:</span>
+                                      <span className="text-gray-900 font-bold block">{c.root_cause}</span>
+                                    </div>
+                                    <div className="mt-2">
+                                      <span className="text-gray-500 font-semibold block text-[10px] uppercase tracking-wider">Action Plan:</span>
+                                      <span className="text-gray-700 font-medium block leading-relaxed">{c.recommended_action}</span>
+                                    </div>
+                                  </div>
+
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       )
                     })
                   )}
