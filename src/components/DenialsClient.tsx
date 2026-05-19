@@ -40,7 +40,7 @@ export interface DenialClaim {
   category: string;
   root_cause: string;
   recommended_action: string;
-  status: 'open' | 'appealed' | 'resolved';
+  status: 'open' | 'appealed' | 'resolved' | 'dismissed';
 }
 
 export const standardizeCategory = (cat: string | null | undefined): string => {
@@ -111,6 +111,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   const [currentPage, setCurrentPage] = useState(1)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'open' | 'appealed' | 'resolved' | 'dismissed'>('open')
   const [claims, setClaims] = useState<DenialClaim[]>(initialClaims)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -141,6 +142,11 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   const totalDeniedDollars = totalBilled - totalPaid
   const denialRate = totalBilled > 0 ? (totalDeniedDollars / totalBilled) * 100 : 0
   const recoverableOpportunities = claims.filter(c => c.recommended_action && c.recommended_action.trim() !== '').length
+
+  const openCount = claims.filter(c => c.status === 'open' || !c.status).length
+  const appealedCount = claims.filter(c => c.status === 'appealed').length
+  const resolvedCount = claims.filter(c => c.status === 'resolved').length
+  const dismissedCount = claims.filter(c => c.status === 'dismissed').length
 
   // CSV parsing functions
   const handleDrag = (e: React.DragEvent) => {
@@ -377,16 +383,25 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
 
   // Work Queue Local Filter & Pagination
   const filteredClaims = claims.filter(c => {
+    // Tab status filter
+    const matchesStatus =
+      (activeTab === 'open' && (c.status === 'open' || !c.status)) ||
+      (activeTab === 'appealed' && c.status === 'appealed') ||
+      (activeTab === 'resolved' && c.status === 'resolved') ||
+      (activeTab === 'dismissed' && c.status === 'dismissed')
+
+    // Search filter
     const matchesSearch =
       c.account?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.claim_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.payer?.toLowerCase().includes(searchTerm.toLowerCase())
 
+    // Category filter
     const matchesCategory =
       categoryFilter === 'All' ||
       standardizeCategory(c.category).toLowerCase() === categoryFilter.toLowerCase()
 
-    return matchesSearch && matchesCategory
+    return matchesStatus && matchesSearch && matchesCategory
   })
 
   const limit = 50
@@ -734,6 +749,48 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
             </div>
           </div>
 
+          {/* Status Tabs */}
+          <div className="border-b border-gray-200 pb-px">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar" aria-label="Tabs">
+              {[
+                { id: 'open', label: 'Open', count: openCount },
+                { id: 'appealed', label: 'In Appeal', count: appealedCount },
+                { id: 'resolved', label: 'Resolved', count: resolvedCount },
+                { id: 'dismissed', label: 'Dismissed', count: dismissedCount }
+              ].map((tab) => {
+                const isActive = activeTab === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id as 'open' | 'appealed' | 'resolved' | 'dismissed')
+                      setCurrentPage(1)
+                      setExpandedClaimId(null)
+                    }}
+                    className={`
+                      group inline-flex items-center py-4 px-1 border-b-2 font-bold text-sm transition-all focus:outline-none whitespace-nowrap
+                      ${isActive
+                        ? 'border-[#2563eb] text-[#2563eb]'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                    `}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={`
+                        ml-3 py-0.5 px-2 rounded-full text-xs font-bold transition-all
+                        ${isActive
+                          ? 'bg-blue-100 text-[#2563eb]'
+                          : 'bg-gray-100 text-gray-900 group-hover:bg-gray-200'}
+                      `}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                )
+              })}
+            </nav>
+          </div>
+
           {/* Table list */}
           <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-sm overflow-hidden">
             <div>
@@ -808,31 +865,65 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                                 {c.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-right whitespace-nowrap">
-                              <div className="flex justify-end items-center gap-1.5">
-                                <button
-                                  onClick={() => handleUpdateStatus(c.id, 'appealed')}
-                                  disabled={updatingId === c.id || c.status === 'appealed'}
-                                  className="bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
-                                >
-                                  Appeal
-                                </button>
-                                <button
-                                  onClick={() => handleUpdateStatus(c.id, 'resolved')}
-                                  disabled={updatingId === c.id || c.status === 'resolved'}
-                                  className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
-                                >
-                                  Resolve
-                                </button>
-                                <button
-                                  onClick={() => handleUpdateStatus(c.id, 'dismissed')}
-                                  disabled={updatingId === c.id}
-                                  className="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
-                                >
-                                  Dismiss
-                                </button>
-                              </div>
-                            </td>
+                             <td className="px-6 py-4 text-right whitespace-nowrap">
+                               <div className="flex justify-end items-center gap-1.5">
+                                 {activeTab === 'open' && (
+                                   <>
+                                     <button
+                                       onClick={() => handleUpdateStatus(c.id, 'appealed')}
+                                       disabled={updatingId === c.id}
+                                       className="bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                     >
+                                       Appeal
+                                     </button>
+                                     <button
+                                       onClick={() => handleUpdateStatus(c.id, 'resolved')}
+                                       disabled={updatingId === c.id}
+                                       className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                     >
+                                       Resolve
+                                     </button>
+                                     <button
+                                       onClick={() => handleUpdateStatus(c.id, 'dismissed')}
+                                       disabled={updatingId === c.id}
+                                       className="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                     >
+                                       Dismiss
+                                     </button>
+                                   </>
+                                 )}
+                                 {activeTab === 'appealed' && (
+                                   <>
+                                     <button
+                                       onClick={() => handleUpdateStatus(c.id, 'resolved')}
+                                       disabled={updatingId === c.id}
+                                       className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                     >
+                                       Resolve
+                                     </button>
+                                     <button
+                                       onClick={() => handleUpdateStatus(c.id, 'dismissed')}
+                                       disabled={updatingId === c.id}
+                                       className="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                     >
+                                       Dismiss
+                                     </button>
+                                   </>
+                                 )}
+                                 {activeTab === 'resolved' && (
+                                   <span className="text-gray-400 text-xs italic font-medium">Read-only</span>
+                                 )}
+                                 {activeTab === 'dismissed' && (
+                                   <button
+                                     onClick={() => handleUpdateStatus(c.id, 'open')}
+                                     disabled={updatingId === c.id}
+                                     className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100/80 disabled:opacity-40 rounded px-2.5 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                   >
+                                     Reopen
+                                   </button>
+                                 )}
+                               </div>
+                             </td>
                           </tr>
                           
                           {/* Expanded Row */}
