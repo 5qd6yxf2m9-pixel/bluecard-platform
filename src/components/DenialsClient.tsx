@@ -593,24 +593,24 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
             <h2 className="text-xl font-bold text-[#0a1628] font-display">
               Denial Analytics
             </h2>
-            
-            {/* Row 1 */}
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            {/* 2x2 Grid Layout */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
               {/* Top 5 CARCs */}
-              <div className="bg-white p-6 rounded-xl border border-[#e2e8f0] shadow-sm">
-                <h3 className="font-bold text-sm text-gray-900 mb-4">Top 5 Denial Reasons by CARC Code</h3>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
+              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
+                <h3 className="font-bold text-xs text-gray-900 mb-3">Top 5 Denial Reasons by CARC Code</h3>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={getTopCarcData()}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="code" />
-                      <YAxis allowDecimals={false} />
+                      <XAxis dataKey="code" tick={{ fontSize: 11 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
                         labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
                         itemStyle={{ color: '#93c5fd' }}
                       />
-                      <Legend />
+                      <Legend wrapperStyle={{ fontSize: '11px' }} iconSize={8} />
                       <Bar dataKey="value" name="Claims" fill="#2563eb" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -618,43 +618,40 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
               </div>
 
               {/* Top 5 Payers */}
-              <div className="bg-white p-6 rounded-xl border border-[#e2e8f0] shadow-sm">
-                <h3 className="font-bold text-sm text-gray-900 mb-4">Top 5 Payers by Denied Dollars</h3>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
+              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
+                <h3 className="font-bold text-xs text-gray-900 mb-3">Top 5 Payers by Denied Dollars</h3>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={getTopPayersData()} margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" />
-                      <YAxis tickFormatter={(v: number) => formatCurrency(v)} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v: number) => formatCurrency(v)} tick={{ fontSize: 11 }} />
                       <Tooltip
                         formatter={(v: unknown) => formatCurrency(Number(v))}
-                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
                         labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
                         itemStyle={{ color: '#93c5fd' }}
                       />
-                      <Legend />
+                      <Legend wrapperStyle={{ fontSize: '11px' }} iconSize={8} />
                       <Bar dataKey="value" name="Denied Amount" fill="#0a1628" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
-            </div>
 
-            {/* Row 2 */}
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {/* Category Pie */}
-              <div className="bg-white p-6 rounded-xl border border-[#e2e8f0] shadow-sm">
-                <h3 className="font-bold text-sm text-gray-900 mb-4">Denial Categories Breakdown</h3>
-                <div className="h-80 flex items-center justify-center">
-                  <div className="w-[60%] h-full">
-                    <ResponsiveContainer width="100%" height="100%">
+              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
+                <h3 className="font-bold text-xs text-gray-900 mb-3">Denial Categories Breakdown</h3>
+                <div className="h-[220px] flex items-center justify-center">
+                  <div className="w-[50%] h-full">
+                    <ResponsiveContainer width="100%" height={220}>
                       <PieChart>
                         <Pie
                           data={getCategoryPieData()}
                           cx="50%"
                           cy="50%"
-                          innerRadius={60}
-                          outerRadius={90}
+                          innerRadius={45}
+                          outerRadius={70}
                           paddingAngle={3}
                           dataKey="value"
                         >
@@ -663,17 +660,17 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                           ))}
                         </Pie>
                         <Tooltip
-                          contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                          contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
                           labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
                           itemStyle={{ color: '#93c5fd' }}
                         />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="w-[40%] text-xs space-y-2 font-medium">
+                  <div className="w-[50%] text-[10px] space-y-1.5 font-medium max-h-[200px] overflow-y-auto pr-1">
                     {getCategoryPieData().map((entry, index) => (
                       <div key={entry.name} className="flex items-center space-x-2">
-                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
                         <span className="text-gray-600 truncate">{entry.name}</span>
                         <span className="text-gray-900 font-bold ml-auto">{entry.value}</span>
                       </div>
@@ -683,25 +680,26 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
               </div>
 
               {/* Product breakdown */}
-              <div className="bg-white p-6 rounded-xl border border-[#e2e8f0] shadow-sm">
-                <h3 className="font-bold text-sm text-gray-900 mb-4">Product Type Breakdown</h3>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
+              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
+                <h3 className="font-bold text-xs text-gray-900 mb-3">Product Type Breakdown</h3>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={getProductTypeData()}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" />
-                      <YAxis allowDecimals={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
                         labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
                         itemStyle={{ color: '#93c5fd' }}
                       />
-                      <Legend />
+                      <Legend wrapperStyle={{ fontSize: '11px' }} iconSize={8} />
                       <Bar dataKey="value" name="Claims" fill="#16a34a" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
+
             </div>
           </div>
         )}
