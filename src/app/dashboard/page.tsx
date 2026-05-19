@@ -4,31 +4,6 @@ import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
-interface ApprovedQueueItem {
-  id: string;
-  patient_id: string;
-  recommended_plan: string;
-  uplift_amount: number;
-}
-
-interface OpenDenialQueueItem {
-  id: string;
-  account: string;
-  payer: string;
-  billed_amount: number;
-  category: string;
-}
-
-interface UnifiedQueueItem {
-  id: string;
-  type: 'BlueCard' | 'Denial';
-  label: string;
-  subtext: string;
-  amount: number;
-  actionLabel: 'Route' | 'Review';
-  link: string;
-}
-
 export default async function DashboardPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -76,15 +51,17 @@ export default async function DashboardPage() {
 
   const denialBatches = denialBatchesRaw || []
 
-  // Completed denial batches for recoverable sum
+  // Completed denial batches for recoverable sum (Card 2)
   const completedDenialBatches = denialBatches.filter(b => b.status === 'completed')
   const totalDenialRecoverable = completedDenialBatches.reduce((sum, b) => sum + (Number(b.recoverable_amount) || 0), 0)
+
+  // All denial batches for recoverable sum (DenialLogic Module Stat Row)
+  const allDenialRecoverable = denialBatches.reduce((sum, b) => sum + (Number(b.recoverable_amount) || 0), 0)
 
   let estimatedUplift = 0
   let manualReviewCount = 0
   let totalClaimsCount = 0
-  let approvedQueue: ApprovedQueueItem[] = []
-  let openDenialsQueue: OpenDenialQueueItem[] = []
+  let totalApprovedCount = 0
 
   let openDenialsCount = 0
   let totalDenialsCount = 0
@@ -93,9 +70,9 @@ export default async function DashboardPage() {
     upliftRes,
     manualReviewRes,
     totalClaimsRes,
-    approvedDecisionsRes,
+    , // skip approved decisions top 15
     openDenialsCountRes,
-    openDenialsRes,
+    , // skip open denials top 15
     totalDenialsCountRes
   ] = await Promise.all([
     // BlueCard sum of uplift_amount (approved)
@@ -110,13 +87,13 @@ export default async function DashboardPage() {
     batchIds.length > 0
       ? supabase.from('claims').select('*', { count: 'exact', head: true }).in('batch_id', batchIds)
       : Promise.resolve({ count: 0 }),
-    // BlueCard approved routing decisions top 15
+    // BlueCard approved routing decisions top 15 (fetched to match previous data fetching logic)
     batchIds.length > 0
       ? supabase.from('routing_decisions').select('id, recommended_plan, uplift_amount, claim_id').eq('decision', 'approved').in('batch_id', batchIds).order('uplift_amount', { ascending: false }).limit(15)
       : Promise.resolve({ data: null }),
     // DenialLogic open denials count
     supabase.from('denial_claims').select('*', { count: 'exact', head: true }).eq('client_id', profile.client_id).eq('status', 'open'),
-    // DenialLogic open denials top 15
+    // DenialLogic open denials top 15 (fetched to match previous data fetching logic)
     supabase.from('denial_claims').select('id, account, payer, billed_amount, category').eq('client_id', profile.client_id).eq('status', 'open').order('billed_amount', { ascending: false }).limit(15),
     // DenialLogic total denials count
     supabase.from('denial_claims').select('*', { count: 'exact', head: true }).eq('client_id', profile.client_id)
@@ -129,31 +106,14 @@ export default async function DashboardPage() {
   openDenialsCount = openDenialsCountRes?.count || 0
   totalDenialsCount = totalDenialsCountRes?.count || 0
 
-  openDenialsQueue = (openDenialsRes?.data || []).map(d => ({
-    id: d.id,
-    account: d.account || 'Unknown',
-    payer: d.payer || 'Unknown',
-    billed_amount: Number(d.billed_amount) || 0,
-    category: d.category || 'Other'
-  }))
-
-  // Fetch claims in batch for Column 1
-  if (approvedDecisionsRes?.data && approvedDecisionsRes.data.length > 0) {
-    const claimIds = approvedDecisionsRes.data.map(d => d.claim_id)
-    const { data: claimsData } = await supabase
-      .from('claims')
-      .select('id, patient_id')
-      .in('id', claimIds)
-
-    approvedQueue = approvedDecisionsRes.data.map(d => {
-      const claim = (claimsData || []).find(c => c.id === d.claim_id)
-      return {
-        id: d.id,
-        patient_id: claim?.patient_id || 'Unknown',
-        recommended_plan: d.recommended_plan || '',
-        uplift_amount: Number(d.uplift_amount) || 0
-      }
-    })
+  // Fetch total count of approved routing decisions
+  if (batchIds.length > 0) {
+    const { count } = await supabase
+      .from('routing_decisions')
+      .select('*', { count: 'exact', head: true })
+      .in('batch_id', batchIds)
+      .eq('decision', 'approved')
+    totalApprovedCount = count || 0
   }
 
   const formatCurrency = (val: number) => {
@@ -163,37 +123,6 @@ export default async function DashboardPage() {
       maximumFractionDigits: 0
     }).format(val)
   }
-
-  const lastUpdated = new Date().toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true
-  })
-
-  // Combine and sort priority queue
-  const combinedList: UnifiedQueueItem[] = [
-    ...approvedQueue.map(item => ({
-      id: item.id,
-      type: 'BlueCard' as const,
-      label: item.patient_id,
-      subtext: item.recommended_plan,
-      amount: item.uplift_amount,
-      actionLabel: 'Route' as const,
-      link: '/dashboard/bluecard'
-    })),
-    ...openDenialsQueue.map(item => ({
-      id: item.id,
-      type: 'Denial' as const,
-      label: item.account,
-      subtext: `${item.payer} • ${item.category}`,
-      amount: item.billed_amount,
-      actionLabel: 'Review' as const,
-      link: '/dashboard/denials'
-    }))
-  ]
-  .sort((a, b) => b.amount - a.amount)
-  .slice(0, 15)
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans selection:bg-[#2563eb] selection:text-white">
@@ -228,7 +157,7 @@ export default async function DashboardPage() {
       </header>
 
       {/* Main Content Dashboard */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full space-y-10">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full space-y-8">
         
         {/* Financial Opportunity Summary Bar */}
         <div>
@@ -295,182 +224,148 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Priority Work Queue */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-baseline">
-            <h2 className="text-xl font-bold text-[#0a1628] font-display">
-              Priority Work Queue
-            </h2>
-            <span className="text-xs text-gray-400 font-medium">
-              Last updated: {lastUpdated}
-            </span>
-          </div>
-
-          {combinedList.length === 0 ? (
-            <div className="text-sm text-gray-500 py-8 text-center bg-white rounded-xl border border-[#e2e8f0]">
-              No priority work queue items pending.
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-sm divide-y divide-gray-100 overflow-hidden">
-              {combinedList.map(item => (
-                <div key={item.id + '-' + item.type} className="py-4 px-6 flex justify-between items-center hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center space-x-4 min-w-0 flex-1">
-                    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold shrink-0 ${
-                      item.type === 'BlueCard'
-                        ? 'bg-blue-50 text-[#2563eb] ring-1 ring-inset ring-blue-700/10'
-                        : 'bg-amber-50 text-[#d97706] ring-1 ring-inset ring-amber-700/10'
-                    }`}>
-                      {item.type}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold text-[#0a1628] truncate">{item.label}</div>
-                      <div className="text-xs text-gray-500 truncate mt-0.5">{item.subtext}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-6 shrink-0">
-                    <span className={`text-sm font-bold ${
-                      item.type === 'BlueCard' ? 'text-[#2563eb]' : 'text-[#0a1628]'
-                    }`}>
-                      {item.type === 'BlueCard' ? '+' : ''}{formatCurrency(item.amount)}
-                    </span>
-                    <Link
-                      href={item.link}
-                      className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-colors"
-                    >
-                      {item.actionLabel}
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="flex justify-center items-center space-x-6 pt-4 text-xs font-semibold text-gray-500">
-            <Link href="/dashboard/bluecard" className="hover:text-[#2563eb] transition-colors">
-              View all in BlueCard
-            </Link>
-            <span className="text-gray-300">|</span>
-            <Link href="/dashboard/denials" className="hover:text-[#d97706] transition-colors">
-              View all in Denials
-            </Link>
-          </div>
-        </div>
-
         {/* Modules Section */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-[#0a1628] font-display">
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold text-[#0a1628] font-display">
             Modules
           </h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* Card 1: BlueCardLogic */}
             <Link 
               href="/dashboard/bluecard"
-              className="bg-white hover:shadow-md transition-shadow duration-300 rounded-xl border border-[#e2e8f0] border-l-4 border-l-[#2563eb] p-6 flex justify-between items-center group cursor-pointer"
+              className="bg-white shadow-sm border border-[#e2e8f0] border-l-4 border-l-[#2563eb] rounded-xl p-[28px] flex flex-col justify-between hover:shadow-md transition-shadow duration-300 cursor-pointer text-left"
             >
               <div>
-                <h3 className="text-lg font-bold text-gray-900 group-hover:text-[#2563eb] transition-colors">
-                  BlueCardLogic
-                </h3>
-                <p className="text-sm text-gray-500 mt-1">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xl font-bold text-[#0a1628] font-display">
+                    BlueCardLogic
+                  </h3>
+                </div>
+                <p className="text-gray-500 text-sm mt-2">
                   Prebill routing + reimbursement optimization
                 </p>
+                
+                <div className="border-t border-gray-100 my-6"></div>
+                
+                <div className="grid grid-cols-3 gap-4 items-center">
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Uplift Available</div>
+                    <div className="text-2xl font-extrabold font-display text-[#2563eb] mt-1">{formatCurrency(estimatedUplift)}</div>
+                  </div>
+                  <div className="border-l border-gray-100 h-10 pl-4">
+                    <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Ready to Route</div>
+                    <div className="text-2xl font-extrabold font-display text-[#0a1628] mt-1">{totalApprovedCount}</div>
+                  </div>
+                  <div className="border-l border-gray-100 h-10 pl-4">
+                    <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Needs Review</div>
+                    <div className="text-2xl font-extrabold font-display text-[#d97706] mt-1">{manualReviewCount}</div>
+                  </div>
+                </div>
               </div>
-              <div className="text-gray-400 group-hover:text-[#2563eb] transition-colors">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
+
+              <div className="mt-6 w-full bg-[#0a1628] hover:bg-[#12253f] text-white text-center py-3 rounded-lg text-sm font-semibold transition-colors block">
+                Open BlueCardLogic
               </div>
             </Link>
 
             {/* Card 2: DenialLogic */}
             <Link 
               href="/dashboard/denials"
-              className="bg-white hover:shadow-md transition-shadow duration-300 rounded-xl border border-[#e2e8f0] border-l-4 border-l-[#d97706] p-6 flex justify-between items-center group cursor-pointer"
+              className="bg-white shadow-sm border border-[#e2e8f0] border-l-4 border-l-[#d97706] rounded-xl p-[28px] flex flex-col justify-between hover:shadow-md transition-shadow duration-300 cursor-pointer text-left"
             >
               <div>
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-lg font-bold text-gray-900 group-hover:text-[#d97706] transition-colors">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xl font-bold text-[#0a1628] font-display">
                     DenialLogic
                   </h3>
-                  <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                  <span className="inline-flex items-center rounded-md bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-[#d97706] ring-1 ring-inset ring-amber-600/20">
                     Beta
                   </span>
                 </div>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-gray-500 text-sm mt-2">
                   Denial trend analysis + pattern detection
                 </p>
+                
+                <div className="border-t border-gray-100 my-6"></div>
+                
+                <div className="grid grid-cols-3 gap-4 items-center">
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Recoverable</div>
+                    <div className="text-2xl font-extrabold font-display text-[#16a34a] mt-1">{formatCurrency(allDenialRecoverable)}</div>
+                  </div>
+                  <div className="border-l border-gray-100 h-10 pl-4">
+                    <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Open Denials</div>
+                    <div className="text-2xl font-extrabold font-display text-[#d97706] mt-1">{openDenialsCount}</div>
+                  </div>
+                  <div className="border-l border-gray-100 h-10 pl-4">
+                    <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Total Analyzed</div>
+                    <div className="text-2xl font-extrabold font-display text-[#0a1628] mt-1">{totalDenialsCount}</div>
+                  </div>
+                </div>
               </div>
-              <div className="text-gray-400 group-hover:text-[#d97706] transition-colors">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
+
+              <div className="mt-6 w-full bg-[#0a1628] hover:bg-[#12253f] text-white text-center py-3 rounded-lg text-sm font-semibold transition-colors block">
+                Open DenialLogic
               </div>
             </Link>
 
             {/* Card 3: UnderpaymentLogic */}
-            <div className="bg-white rounded-xl border border-[#e2e8f0] border-l-4 border-l-gray-300 p-6 flex justify-between items-center">
+            <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-xl p-[28px] opacity-70 flex flex-col justify-between min-h-[220px]">
               <div>
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-lg font-bold text-gray-400">
-                    UnderpaymentLogic
-                  </h3>
-                  <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-500/10">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xl font-bold text-gray-400 font-display">UnderpaymentLogic</h3>
+                  <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-500/10">
                     Coming Soon
                   </span>
                 </div>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-gray-400 text-sm mt-2">
                   Expected reimbursement variance engine
                 </p>
               </div>
             </div>
 
             {/* Card 4: ContractLogic */}
-            <div className="bg-white rounded-xl border border-[#e2e8f0] border-l-4 border-l-gray-300 p-6 flex justify-between items-center">
+            <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-xl p-[28px] opacity-70 flex flex-col justify-between min-h-[220px]">
               <div>
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-lg font-bold text-gray-400">
-                    ContractLogic
-                  </h3>
-                  <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-500/10">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xl font-bold text-gray-400 font-display">ContractLogic</h3>
+                  <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-500/10">
                     Coming Soon
                   </span>
                 </div>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-gray-400 text-sm mt-2">
                   Contract reimbursement modeling
                 </p>
               </div>
             </div>
 
             {/* Card 5: RevenueIntegrityLogic */}
-            <div className="bg-white rounded-xl border border-[#e2e8f0] border-l-4 border-l-gray-300 p-6 flex justify-between items-center">
+            <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-xl p-[28px] opacity-70 flex flex-col justify-between min-h-[220px]">
               <div>
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-lg font-bold text-gray-400">
-                    RevenueIntegrityLogic
-                  </h3>
-                  <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-500/10">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xl font-bold text-gray-400 font-display">RevenueIntegrityLogic</h3>
+                  <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-500/10">
                     Coming Soon
                   </span>
                 </div>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-gray-400 text-sm mt-2">
                   Charge capture + coding risk detection
                 </p>
               </div>
             </div>
 
             {/* Card 6: PayerBehaviorLogic */}
-            <div className="bg-white rounded-xl border border-[#e2e8f0] border-l-4 border-l-gray-300 p-6 flex justify-between items-center">
+            <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-xl p-[28px] opacity-70 flex flex-col justify-between min-h-[220px]">
               <div>
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-lg font-bold text-gray-400">
-                    PayerBehaviorLogic
-                  </h3>
-                  <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-500/10">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xl font-bold text-gray-400 font-display">PayerBehaviorLogic</h3>
+                  <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-500 ring-1 ring-inset ring-gray-500/10">
                     Coming Soon
                   </span>
                 </div>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-gray-400 text-sm mt-2">
                   Payer delay + denial behavior tracking
                 </p>
               </div>
