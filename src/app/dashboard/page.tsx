@@ -43,20 +43,15 @@ export default async function DashboardPage() {
 
   const batchIds = (clientBatches || []).map(b => b.id)
 
-  // Fetch client denial batches first
-  const { data: denialBatchesRaw } = await supabase
-    .from('denial_batches')
-    .select('id, name, status, total_claims, recoverable_amount, created_at')
+  // Fetch denial claims for recoverable calculation
+  const { data: denialRecoverableData } = await supabase
+    .from('denial_claims')
+    .select('billed_amount, paid_amount')
     .eq('client_id', profile.client_id)
 
-  const denialBatches = denialBatchesRaw || []
-
-  // Completed denial batches for recoverable sum (Card 2)
-  const completedDenialBatches = denialBatches.filter(b => b.status === 'completed')
-  const totalDenialRecoverable = completedDenialBatches.reduce((sum, b) => sum + (Number(b.recoverable_amount) || 0), 0)
-
-  // All denial batches for recoverable sum (DenialLogic Module Stat Row)
-  const allDenialRecoverable = denialBatches.reduce((sum, b) => sum + (Number(b.recoverable_amount) || 0), 0)
+  const denialRecoverable = (denialRecoverableData || []).reduce((sum, claim) => {
+    return sum + ((Number(claim.billed_amount) || 0) - (Number(claim.paid_amount) || 0))
+  }, 0)
 
   let estimatedUplift = 0
   let manualReviewCount = 0
@@ -184,7 +179,7 @@ export default async function DashboardPage() {
                   Denial Recoverable
                 </div>
                 <div className="mt-2 text-3xl font-extrabold text-[#16a34a] font-display">
-                  {formatCurrency(totalDenialRecoverable)}
+                  {formatCurrency(denialRecoverable)}
                 </div>
               </div>
               <div className="text-[11px] text-gray-400 mt-2 font-medium">
@@ -293,7 +288,7 @@ export default async function DashboardPage() {
                 <div className="grid grid-cols-3 gap-4 items-center">
                   <div>
                     <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Recoverable</div>
-                    <div className="text-2xl font-extrabold font-display text-[#16a34a] mt-1">{formatCurrency(allDenialRecoverable)}</div>
+                    <div className="text-2xl font-extrabold font-display text-[#16a34a] mt-1">{formatCurrency(denialRecoverable)}</div>
                   </div>
                   <div className="border-l border-gray-100 h-10 pl-4">
                     <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Open Denials</div>
