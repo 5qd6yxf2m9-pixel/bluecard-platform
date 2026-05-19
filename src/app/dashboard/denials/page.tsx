@@ -1,3 +1,7 @@
+/*
+-- Run in Supabase: create policy "users update own denial claims" on denial_claims for update using (client_id = (select client_id from profiles where id = auth.uid()));
+*/
+
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { DenialsClient, DenialClaim } from '@/components/DenialsClient'

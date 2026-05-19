@@ -111,6 +111,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   const [currentPage, setCurrentPage] = useState(1)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null)
+  const [claims, setClaims] = useState<DenialClaim[]>(initialClaims)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -118,13 +119,28 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
     setMounted(true)
   }, [])
 
+  useEffect(() => {
+    setClaims(initialClaims)
+  }, [initialClaims])
+
+  const fetchDenialClaims = async () => {
+    const { data, error: fetchErr } = await supabase
+      .from('denial_claims')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false })
+    if (!fetchErr && data) {
+      setClaims(data as DenialClaim[])
+    }
+  }
+
   // Dynamic statistics calculations
-  const totalClaims = initialClaims.length
-  const totalBilled = initialClaims.reduce((sum, c) => sum + (Number(c.billed_amount) || 0), 0)
-  const totalPaid = initialClaims.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0)
+  const totalClaims = claims.length
+  const totalBilled = claims.reduce((sum, c) => sum + (Number(c.billed_amount) || 0), 0)
+  const totalPaid = claims.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0)
   const totalDeniedDollars = totalBilled - totalPaid
   const denialRate = totalBilled > 0 ? (totalDeniedDollars / totalBilled) * 100 : 0
-  const recoverableOpportunities = initialClaims.filter(c => c.recommended_action && c.recommended_action.trim() !== '').length
+  const recoverableOpportunities = claims.filter(c => c.recommended_action && c.recommended_action.trim() !== '').length
 
   // CSV parsing functions
   const handleDrag = (e: React.DragEvent) => {
@@ -324,7 +340,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
         }
 
         setSuccess(`Successfully imported and processed ${claimsToInsert.length} denial claims.`)
-        router.refresh()
+        await fetchDenialClaims()
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Failed to import CSV remit records."
         setError(msg)
@@ -345,20 +361,13 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   const handleUpdateStatus = async (claimId: string, newStatus: 'open' | 'appealed' | 'resolved' | 'dismissed') => {
     setUpdatingId(claimId)
     try {
-      if (newStatus === 'dismissed') {
-        const { error: delError } = await supabase
-          .from('denial_claims')
-          .delete()
-          .eq('id', claimId)
-        if (delError) throw delError
-      } else {
-        const { error: updateError } = await supabase
-          .from('denial_claims')
-          .update({ status: newStatus })
-          .eq('id', claimId)
-        if (updateError) throw updateError
-      }
-      router.refresh()
+      const { error: updateError } = await supabase
+        .from('denial_claims')
+        .update({ status: newStatus })
+        .eq('id', claimId)
+      if (updateError) throw updateError
+      
+      await fetchDenialClaims()
     } catch {
       setError("Failed to update claim status.")
     } finally {
@@ -367,7 +376,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   }
 
   // Work Queue Local Filter & Pagination
-  const filteredClaims = initialClaims.filter(c => {
+  const filteredClaims = claims.filter(c => {
     const matchesSearch =
       c.account?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.claim_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -387,7 +396,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   // Chart aggregation processing
   const getTopCarcData = () => {
     const counts: Record<string, number> = {}
-    initialClaims.forEach(c => {
+    claims.forEach(c => {
       if (c.carc_code) {
         counts[c.carc_code] = (counts[c.carc_code] || 0) + 1
       }
@@ -400,7 +409,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
 
   const getTopPayersData = () => {
     const dollars: Record<string, number> = {}
-    initialClaims.forEach(c => {
+    claims.forEach(c => {
       if (c.payer) {
         const denied = (Number(c.billed_amount) || 0) - (Number(c.paid_amount) || 0)
         dollars[c.payer] = (dollars[c.payer] || 0) + denied
@@ -414,7 +423,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
 
   const getCategoryPieData = () => {
     const counts: Record<string, number> = {}
-    initialClaims.forEach(c => {
+    claims.forEach(c => {
       const cat = standardizeCategory(c.category)
       counts[cat] = (counts[cat] || 0) + 1
     })
@@ -423,7 +432,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
 
   const getProductTypeData = () => {
     const counts: Record<string, number> = {}
-    initialClaims.forEach(c => {
+    claims.forEach(c => {
       if (c.product_type) {
         counts[c.product_type] = (counts[c.product_type] || 0) + 1
       }
@@ -564,7 +573,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
         </div>
 
         {/* Analytics charts section */}
-        {mounted && initialClaims.length > 0 && (
+        {mounted && claims.length > 0 && (
           <div className="space-y-6">
             <h2 className="text-xl font-bold text-[#0a1628] font-display">
               Denial Analytics
@@ -598,7 +607,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                 <h3 className="font-bold text-sm text-gray-900 mb-4">Top 5 Payers by Denied Dollars</h3>
                 <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={getTopPayersData()}>
+                    <BarChart data={getTopPayersData()} margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="name" />
                       <YAxis tickFormatter={(v: number) => formatCurrency(v)} />
