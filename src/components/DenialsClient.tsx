@@ -726,17 +726,29 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <select
-                              value={c.status}
-                              disabled={updatingId === c.id}
-                              onChange={(e) => handleUpdateStatus(c.id, e.target.value as 'open' | 'appealed' | 'resolved' | 'dismissed')}
-                              className="rounded border border-gray-300 px-2 py-1 text-xs outline-none bg-white font-semibold text-gray-700 focus:border-[#2563eb]"
-                            >
-                              <option value="open">Open</option>
-                              <option value="appealed">Mark Appealed</option>
-                              <option value="resolved">Mark Resolved</option>
-                              <option value="dismissed">Dismiss</option>
-                            </select>
+                            <div className="flex justify-end items-center gap-1.5">
+                              <button
+                                onClick={() => handleUpdateStatus(c.id, 'appealed')}
+                                disabled={updatingId === c.id || c.status === 'appealed'}
+                                className="bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                              >
+                                Appeal
+                              </button>
+                              <button
+                                onClick={() => handleUpdateStatus(c.id, 'resolved')}
+                                disabled={updatingId === c.id || c.status === 'resolved'}
+                                className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                              >
+                                Resolve
+                              </button>
+                              <button
+                                onClick={() => handleUpdateStatus(c.id, 'dismissed')}
+                                disabled={updatingId === c.id}
+                                className="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                              >
+                                Dismiss
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )
