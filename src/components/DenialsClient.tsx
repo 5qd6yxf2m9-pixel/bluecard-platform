@@ -791,7 +791,9 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                               <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800 ring-1 ring-inset ring-amber-600/20">
                                 {c.carc_code}
                               </span>
-                              <div className="text-xs text-gray-500 mt-1 font-medium">{c.category}</div>
+                              {c.category && c.category.toLowerCase() !== 'other' && c.category.toLowerCase() !== 'unknown' && (
+                                <div className="text-xs text-gray-500 mt-1 font-medium">{c.category}</div>
+                              )}
                             </td>
                             <td className="px-6 py-4">
                               <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${
@@ -903,7 +905,11 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                                     <div className="font-bold text-gray-700 border-b pb-1 mb-2">Root Cause & Plan</div>
                                     <div>
                                       <span className="text-gray-500 font-semibold block text-[10px] uppercase tracking-wider">Root Cause:</span>
-                                      <span className="text-gray-900 font-bold block">{c.root_cause}</span>
+                                      {!c.root_cause || c.root_cause.trim() === '' || c.root_cause.toLowerCase() === 'other / unknown' ? (
+                                        <span className="text-gray-400 italic block">Pending CARC mapping</span>
+                                      ) : (
+                                        <span className="text-gray-900 font-bold block">{c.root_cause}</span>
+                                      )}
                                     </div>
                                     <div className="mt-2">
                                       <span className="text-gray-500 font-semibold block text-[10px] uppercase tracking-wider">Action Plan:</span>
