@@ -11,17 +11,21 @@ interface ApprovedQueueItem {
   uplift_amount: number;
 }
 
-interface ReviewQueueItem {
+interface OpenDenialQueueItem {
   id: string;
-  patient_id: string;
-  reason_code: string;
+  account: string;
+  payer: string;
+  billed_amount: number;
+  category: string;
 }
 
-interface BatchQueueItem {
+interface CombinedActivityItem {
   id: string;
   name: string;
+  module: 'BlueCard' | 'Denial';
   status: string;
   total_claims: number;
+  created_at: string;
 }
 
 export default async function DashboardPage() {
@@ -63,114 +67,139 @@ export default async function DashboardPage() {
 
   const batchIds = (clientBatches || []).map(b => b.id)
 
+  // Fetch client denial batches first
+  const { data: denialBatchesRaw } = await supabase
+    .from('denial_batches')
+    .select('id, name, status, total_claims, recoverable_amount, created_at')
+    .eq('client_id', profile.client_id)
+
+  const denialBatches = denialBatchesRaw || []
+
+  // Completed denial batches for recoverable sum
+  const completedDenialBatches = denialBatches.filter(b => b.status === 'completed')
+  const totalDenialRecoverable = completedDenialBatches.reduce((sum, b) => sum + (Number(b.recoverable_amount) || 0), 0)
+
   let estimatedUplift = 0
   let manualReviewCount = 0
   let totalClaimsCount = 0
-  let activeBatchesCount = 0
   let approvedQueue: ApprovedQueueItem[] = []
-  let reviewQueue: ReviewQueueItem[] = []
-  let batchQueue: BatchQueueItem[] = []
+  let openDenialsQueue: OpenDenialQueueItem[] = []
+  let combinedActivity: CombinedActivityItem[] = []
 
-  if (batchIds.length > 0) {
-    const [
-      upliftRes,
-      manualReviewRes,
-      totalClaimsRes,
-      activeBatchesRes,
-      approvedDecisionsRes,
-      reviewDecisionsRes,
-      recentBatchesRes
-    ] = await Promise.all([
-      supabase
-        .from('routing_decisions')
-        .select('uplift_amount')
-        .in('batch_id', batchIds)
-        .eq('decision', 'approved'),
-      supabase
-        .from('routing_decisions')
-        .select('*', { count: 'exact', head: true })
-        .in('batch_id', batchIds)
-        .eq('decision', 'manual_review'),
-      supabase
-        .from('claims')
-        .select('*', { count: 'exact', head: true })
-        .in('batch_id', batchIds),
-      supabase
-        .from('batches')
-        .select('*', { count: 'exact', head: true })
-        .eq('client_id', profile.client_id)
-        .eq('status', 'open'),
-      supabase
-        .from('routing_decisions')
-        .select('id, recommended_plan, uplift_amount, claim_id')
-        .eq('decision', 'approved')
-        .in('batch_id', batchIds)
-        .order('created_at', { ascending: false })
-        .limit(5),
-      supabase
-        .from('routing_decisions')
-        .select('id, manual_review_code, reason, claim_id')
-        .eq('decision', 'manual_review')
-        .in('batch_id', batchIds)
-        .order('created_at', { ascending: false })
-        .limit(5),
-      supabase
-        .from('batches')
-        .select('id, name, status, total_claims')
-        .eq('client_id', profile.client_id)
-        .order('created_at', { ascending: false })
-        .limit(5)
-    ])
+  let openDenialsCount = 0
+  let totalDenialsCount = 0
+  let totalApprovedCount = 0
 
-    estimatedUplift = (upliftRes.data || []).reduce((sum, d) => sum + (Number(d.uplift_amount) || 0), 0)
-    manualReviewCount = manualReviewRes.count || 0
-    totalClaimsCount = totalClaimsRes.count || 0
-    activeBatchesCount = activeBatchesRes.count || 0
+  const [
+    upliftRes,
+    manualReviewRes,
+    totalClaimsRes,
+    approvedDecisionsRes,
+    openDenialsCountRes,
+    openDenialsRes,
+    totalDenialsCountRes,
+    recentBatchesRes
+  ] = await Promise.all([
+    // BlueCard sum of uplift_amount (approved)
+    batchIds.length > 0 
+      ? supabase.from('routing_decisions').select('uplift_amount').in('batch_id', batchIds).eq('decision', 'approved')
+      : Promise.resolve({ data: null }),
+    // BlueCard manual review count
+    batchIds.length > 0
+      ? supabase.from('routing_decisions').select('*', { count: 'exact', head: true }).in('batch_id', batchIds).eq('decision', 'manual_review')
+      : Promise.resolve({ count: 0 }),
+    // BlueCard total claims count
+    batchIds.length > 0
+      ? supabase.from('claims').select('*', { count: 'exact', head: true }).in('batch_id', batchIds)
+      : Promise.resolve({ count: 0 }),
+    // BlueCard approved routing decisions top 5
+    batchIds.length > 0
+      ? supabase.from('routing_decisions').select('id, recommended_plan, uplift_amount, claim_id').eq('decision', 'approved').in('batch_id', batchIds).order('created_at', { ascending: false }).limit(5)
+      : Promise.resolve({ data: null }),
+    // DenialLogic open denials count
+    supabase.from('denial_claims').select('*', { count: 'exact', head: true }).eq('client_id', profile.client_id).eq('status', 'open'),
+    // DenialLogic open denials top 5
+    supabase.from('denial_claims').select('id, account, payer, billed_amount, category').eq('client_id', profile.client_id).eq('status', 'open').order('created_at', { ascending: false }).limit(5),
+    // DenialLogic total denials count
+    supabase.from('denial_claims').select('*', { count: 'exact', head: true }).eq('client_id', profile.client_id),
+    // BlueCard recent batches top 5
+    supabase.from('batches').select('id, name, status, total_claims, created_at').eq('client_id', profile.client_id).order('created_at', { ascending: false }).limit(5)
+  ])
 
-    // Fetch claims in batch for Column 1
-    if (approvedDecisionsRes.data && approvedDecisionsRes.data.length > 0) {
-      const claimIds = approvedDecisionsRes.data.map(d => d.claim_id)
-      const { data: claimsData } = await supabase
-        .from('claims')
-        .select('id, patient_id')
-        .in('id', claimIds)
+  estimatedUplift = (upliftRes?.data || []).reduce((sum, d) => sum + (Number(d.uplift_amount) || 0), 0)
+  manualReviewCount = manualReviewRes?.count || 0
+  totalClaimsCount = totalClaimsRes?.count || 0
 
-      approvedQueue = approvedDecisionsRes.data.map(d => {
-        const claim = (claimsData || []).find(c => c.id === d.claim_id)
-        return {
-          id: d.id,
-          patient_id: claim?.patient_id || 'Unknown',
-          recommended_plan: d.recommended_plan || '',
-          uplift_amount: Number(d.uplift_amount) || 0
-        }
-      })
-    }
+  openDenialsCount = openDenialsCountRes?.count || 0
+  totalDenialsCount = totalDenialsCountRes?.count || 0
 
-    // Fetch claims in batch for Column 2
-    if (reviewDecisionsRes.data && reviewDecisionsRes.data.length > 0) {
-      const claimIds = reviewDecisionsRes.data.map(d => d.claim_id)
-      const { data: claimsData } = await supabase
-        .from('claims')
-        .select('id, patient_id')
-        .in('id', claimIds)
+  openDenialsQueue = (openDenialsRes?.data || []).map(d => ({
+    id: d.id,
+    account: d.account || 'Unknown',
+    payer: d.payer || 'Unknown',
+    billed_amount: Number(d.billed_amount) || 0,
+    category: d.category || 'Other'
+  }))
 
-      reviewQueue = reviewDecisionsRes.data.map(d => {
-        const claim = (claimsData || []).find(c => c.id === d.claim_id)
-        return {
-          id: d.id,
-          patient_id: claim?.patient_id || 'Unknown',
-          reason_code: d.manual_review_code || d.reason || 'Needs Review'
-        }
-      })
-    }
+  // Fetch claims in batch for Column 1
+  if (approvedDecisionsRes?.data && approvedDecisionsRes.data.length > 0) {
+    const claimIds = approvedDecisionsRes.data.map(d => d.claim_id)
+    const { data: claimsData } = await supabase
+      .from('claims')
+      .select('id, patient_id')
+      .in('id', claimIds)
 
-    batchQueue = (recentBatchesRes.data || []).map(b => ({
-      id: b.id,
-      name: b.name,
-      status: b.status,
-      total_claims: Number(b.total_claims) || 0
-    }))
+    approvedQueue = approvedDecisionsRes.data.map(d => {
+      const claim = (claimsData || []).find(c => c.id === d.claim_id)
+      return {
+        id: d.id,
+        patient_id: claim?.patient_id || 'Unknown',
+        recommended_plan: d.recommended_plan || '',
+        uplift_amount: Number(d.uplift_amount) || 0
+      }
+    })
   }
+
+  // Fetch total count of approved routing decisions
+  if (batchIds.length > 0) {
+    const { count } = await supabase
+      .from('routing_decisions')
+      .select('*', { count: 'exact', head: true })
+      .in('batch_id', batchIds)
+      .eq('decision', 'approved')
+    totalApprovedCount = count || 0
+  }
+
+  // Active Modules Calculation
+  let activeModulesCount = 0
+  if (batchIds.length > 0) {
+    activeModulesCount += 1
+  }
+  if (denialBatches.length > 0) {
+    activeModulesCount += 1
+  }
+
+  // Combined Activity list sorted by created_at desc (Column 3)
+  combinedActivity = [
+    ...(recentBatchesRes?.data || []).map(b => ({
+      id: b.id,
+      name: b.name || 'Unknown Batch',
+      module: 'BlueCard' as const,
+      status: b.status || '',
+      total_claims: Number(b.total_claims) || 0,
+      created_at: b.created_at
+    })),
+    ...denialBatches.map(db => ({
+      id: db.id,
+      name: db.name || 'Unknown Batch',
+      module: 'Denial' as const,
+      status: db.status || '',
+      total_claims: Number(db.total_claims) || 0,
+      created_at: db.created_at
+    }))
+  ]
+  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  .slice(0, 5)
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -179,6 +208,13 @@ export default async function DashboardPage() {
       maximumFractionDigits: 0
     }).format(val)
   }
+
+  const lastUpdated = new Date().toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  })
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans selection:bg-[#2563eb] selection:text-white">
@@ -220,41 +256,61 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
             {/* Stat Card 1 */}
             <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Estimated Uplift Available
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Total Revenue Opportunity
+                </div>
+                <div className="mt-2 text-3xl font-extrabold text-[#2563eb] font-display">
+                  {formatCurrency(estimatedUplift + totalDenialRecoverable)}
+                </div>
               </div>
-              <div className="mt-2 text-3xl font-extrabold text-[#0a1628] font-display">
-                {formatCurrency(estimatedUplift)}
+              <div className="text-[11px] text-gray-400 mt-2 font-medium">
+                BlueCard uplift + Denial recoverable
               </div>
             </div>
 
             {/* Stat Card 2 */}
             <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Claims Needing Review
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Items Needing Attention
+                </div>
+                <div className="mt-2 text-3xl font-extrabold text-[#d97706] font-display">
+                  {manualReviewCount + openDenialsCount}
+                </div>
               </div>
-              <div className="mt-2 text-3xl font-extrabold text-[#0a1628] font-display">
-                {manualReviewCount}
+              <div className="text-[11px] text-gray-400 mt-2 font-medium">
+                Across all modules
               </div>
             </div>
 
             {/* Stat Card 3 */}
             <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Total Claims Analyzed
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Total Claims Analyzed
+                </div>
+                <div className="mt-2 text-3xl font-extrabold text-[#0a1628] font-display">
+                  {totalClaimsCount + totalDenialsCount}
+                </div>
               </div>
-              <div className="mt-2 text-3xl font-extrabold text-[#0a1628] font-display">
-                {totalClaimsCount}
+              <div className="text-[11px] text-gray-400 mt-2 font-medium">
+                BlueCard + Denial
               </div>
             </div>
 
             {/* Stat Card 4 */}
             <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Active Batches
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Active Modules
+                </div>
+                <div className="mt-2 text-3xl font-extrabold text-[#16a34a] font-display">
+                  {activeModulesCount} / 6
+                </div>
               </div>
-              <div className="mt-2 text-3xl font-extrabold text-[#0a1628] font-display">
-                {activeBatchesCount}
+              <div className="text-[11px] text-gray-400 mt-2 font-medium">
+                of 6 platform modules
               </div>
             </div>
           </div>
@@ -262,14 +318,22 @@ export default async function DashboardPage() {
 
         {/* Priority Work Queue */}
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-[#0a1628] font-display">
-            Priority Work Queue
-          </h2>
+          <div>
+            <h2 className="text-xl font-bold text-[#0a1628] font-display">
+              Priority Work Queue
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5 font-medium">
+              Last updated: {lastUpdated}
+            </p>
+          </div>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {/* Column 1: Ready to Route */}
             <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-sm flex flex-col justify-between">
-              <div className="p-5 border-b border-gray-100">
+              <div className="p-5 border-b border-gray-100 flex justify-between items-center">
                 <h3 className="font-bold text-gray-900 text-sm">Ready to Route</h3>
+                <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                  {totalApprovedCount}
+                </span>
               </div>
               <div className="p-5 flex-1 divide-y divide-gray-100">
                 {approvedQueue.length === 0 ? (
@@ -300,22 +364,28 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            {/* Column 2: Needs Review */}
+            {/* Column 2: Open Denials */}
             <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-sm flex flex-col justify-between">
-              <div className="p-5 border-b border-gray-100">
-                <h3 className="font-bold text-gray-900 text-sm">Needs Review</h3>
+              <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+                <h3 className="font-bold text-gray-900 text-sm">Open Denials</h3>
+                <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-700/10">
+                  {openDenialsCount}
+                </span>
               </div>
               <div className="p-5 flex-1 divide-y divide-gray-100">
-                {reviewQueue.length === 0 ? (
+                {openDenialsQueue.length === 0 ? (
                   <div className="text-sm text-gray-500 py-6 text-center">
-                    No claims pending manual review.
+                    No open denials.
                   </div>
                 ) : (
-                  reviewQueue.map(item => (
+                  openDenialsQueue.map(item => (
                     <div key={item.id} className="py-3 flex justify-between items-center text-sm">
-                      <div>
-                        <div className="font-semibold text-gray-900">{item.patient_id}</div>
-                        <div className="text-xs text-gray-500 truncate max-w-[200px]">{item.reason_code}</div>
+                      <div className="min-w-0 flex-1 pr-2">
+                        <div className="font-semibold text-gray-900 truncate">{item.account}</div>
+                        <div className="text-xs text-gray-500 truncate">{item.payer} • {item.category}</div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-bold text-[#dc2626]">{formatCurrency(item.billed_amount)}</div>
                       </div>
                     </div>
                   ))
@@ -323,7 +393,7 @@ export default async function DashboardPage() {
               </div>
               <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
                 <Link 
-                  href="/dashboard/bluecard" 
+                  href="/dashboard/denials" 
                   className="bg-[#0a1628] hover:bg-[#12253f] text-white px-4 py-2 rounded-md text-xs font-bold transition-colors"
                 >
                   Review
@@ -331,26 +401,37 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            {/* Column 3: Recent Batches */}
+            {/* Column 3: Recent Activity */}
             <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-sm flex flex-col justify-between">
               <div className="p-5 border-b border-gray-100">
-                <h3 className="font-bold text-gray-900 text-sm">Recent Batches</h3>
+                <h3 className="font-bold text-gray-900 text-sm">Recent Activity</h3>
               </div>
               <div className="p-5 flex-1 divide-y divide-gray-100">
-                {batchQueue.length === 0 ? (
+                {combinedActivity.length === 0 ? (
                   <div className="text-sm text-gray-500 py-6 text-center">
-                    No batches uploaded yet.
+                    No recent activity.
                   </div>
                 ) : (
-                  batchQueue.map(item => (
-                    <div key={item.id} className="py-3 flex justify-between items-center text-sm">
-                      <div>
-                        <div className="font-semibold text-gray-900">{item.name}</div>
-                        <div className="text-xs text-gray-500">{item.total_claims} claims</div>
+                  combinedActivity.map(item => (
+                    <div key={item.id + '-' + item.module} className="py-3 flex justify-between items-center text-sm">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-semibold text-gray-900 truncate">{item.name}</span>
+                          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold shrink-0 ${
+                            item.module === 'BlueCard' 
+                              ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/10'
+                              : 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/10'
+                          }`}>
+                            {item.module}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {item.total_claims} claims
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-3">
-                        <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
-                          item.status === 'open' 
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
+                          item.status === 'open' || item.status === 'completed' 
                             ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' 
                             : item.status === 'processing'
                             ? 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20 animate-pulse'
@@ -359,8 +440,8 @@ export default async function DashboardPage() {
                           {item.status}
                         </span>
                         <Link 
-                          href={`/dashboard/bluecard/batch/${item.id}`}
-                          className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors"
+                          href={item.module === 'BlueCard' ? `/dashboard/bluecard/batch/${item.id}` : `/dashboard/denials`}
+                          className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 px-2 py-1 rounded text-xs font-semibold transition-colors"
                         >
                           View
                         </Link>
