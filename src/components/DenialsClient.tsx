@@ -282,30 +282,22 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
           throw new Error("No valid rows could be parsed from the CSV file.")
         }
 
-        // Batch fetch matching rules and mappings for resolving CARC Codes
-        const uniqueCarcs = Array.from(new Set(rawRecords.map(r => r.carc_code))).filter(Boolean)
+        // Fetch matching rules and mappings for resolving CARC Codes
+        const { data: carcData } = await supabase.from('carc_rarc_mapping').select('carc_code, category, subcategory, carc_description')
+        const carcMap = new Map((carcData || []).map(c => [c.carc_code, c]))
 
-        const { data: mappingsData } = await supabase
-          .from('carc_rarc_mapping')
-          .select('denial_code, category, subcategory')
-          .in('denial_code', uniqueCarcs)
-
-        const { data: rulesData } = await supabase
-          .from('xr_rules')
-          .select('denial_code, recommended_action')
-          .in('denial_code', uniqueCarcs)
-
-        const mappingMap = new Map(mappingsData?.map(m => [String(m.denial_code).trim().toUpperCase(), m]) || [])
-        const ruleMap = new Map(rulesData?.map(r => [String(r.denial_code).trim().toUpperCase(), r.recommended_action]) || [])
+        const { data: xrData } = await supabase.from('xr_rules').select('denial_code, root_cause, recommended_action')
+        const xrMap = new Map((xrData || []).map(x => [x.denial_code, x]))
 
         // Map resolved data and setup insert payloads
         const claimsToInsert = rawRecords.map(r => {
-          const carcLookupKey = String(r.carc_code).trim().toUpperCase()
-          const mapping = mappingMap.get(carcLookupKey)
-          const rawCategory = mapping?.category || 'Other'
+          const carcInfo = carcMap.get(r.carc_code) || carcMap.get(String(r.carc_code))
+          const xrInfo = xrMap.get(r.carc_code) || xrMap.get(String(r.carc_code))
+
+          const rawCategory = carcInfo?.category || 'Other'
           const category = standardizeCategory(rawCategory)
-          const rootCause = mapping?.subcategory || 'Other / Unknown'
-          const recommendedAction = ruleMap.get(carcLookupKey) || 'Verify timely submission parameters and re-bill.'
+          const rootCause = xrInfo?.root_cause || carcInfo?.carc_description || 'Unknown'
+          const recommendedAction = xrInfo?.recommended_action || null
 
           return {
             ...r,
