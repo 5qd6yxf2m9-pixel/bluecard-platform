@@ -55,105 +55,122 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
-  // Fetch Opportunity Summary metrics in parallel
-  const [
-    upliftRes,
-    manualReviewRes,
-    totalClaimsRes,
-    activeBatchesRes,
-    approvedDecisionsRes,
-    reviewDecisionsRes,
-    recentBatchesRes
-  ] = await Promise.all([
-    supabase
-      .from('routing_decisions')
-      .select('uplift_amount')
-      .eq('client_id', profile.client_id)
-      .eq('decision', 'approved'),
-    supabase
-      .from('routing_decisions')
-      .select('*', { count: 'exact', head: true })
-      .eq('client_id', profile.client_id)
-      .eq('decision', 'manual_review'),
-    supabase
-      .from('claims')
-      .select('*', { count: 'exact', head: true })
-      .eq('client_id', profile.client_id),
-    supabase
-      .from('batches')
-      .select('*', { count: 'exact', head: true })
-      .eq('client_id', profile.client_id)
-      .eq('status', 'open'),
-    supabase
-      .from('routing_decisions')
-      .select('id, recommended_plan, uplift_amount, claim_id')
-      .eq('client_id', profile.client_id)
-      .eq('decision', 'approved')
-      .order('created_at', { ascending: false })
-      .limit(5),
-    supabase
-      .from('routing_decisions')
-      .select('id, manual_review_code, reason, claim_id')
-      .eq('client_id', profile.client_id)
-      .eq('decision', 'manual_review')
-      .order('created_at', { ascending: false })
-      .limit(5),
-    supabase
-      .from('batches')
-      .select('id, name, status, total_claims')
-      .eq('client_id', profile.client_id)
-      .order('created_at', { ascending: false })
-      .limit(5)
-  ])
+  // Fetch client batches first
+  const { data: clientBatches } = await supabase
+    .from('batches')
+    .select('id')
+    .eq('client_id', profile.client_id)
 
-  // Process uplift sum
-  const estimatedUplift = (upliftRes.data || []).reduce((sum, d) => sum + (Number(d.uplift_amount) || 0), 0)
+  const batchIds = (clientBatches || []).map(b => b.id)
 
-  // Fetch claims in batch for Column 1
+  let estimatedUplift = 0
+  let manualReviewCount = 0
+  let totalClaimsCount = 0
+  let activeBatchesCount = 0
   let approvedQueue: ApprovedQueueItem[] = []
-  if (approvedDecisionsRes.data && approvedDecisionsRes.data.length > 0) {
-    const claimIds = approvedDecisionsRes.data.map(d => d.claim_id)
-    const { data: claimsData } = await supabase
-      .from('claims')
-      .select('id, patient_id')
-      .in('id', claimIds)
-
-    approvedQueue = approvedDecisionsRes.data.map(d => {
-      const claim = (claimsData || []).find(c => c.id === d.claim_id)
-      return {
-        id: d.id,
-        patient_id: claim?.patient_id || 'Unknown',
-        recommended_plan: d.recommended_plan || '',
-        uplift_amount: Number(d.uplift_amount) || 0
-      }
-    })
-  }
-
-  // Fetch claims in batch for Column 2
   let reviewQueue: ReviewQueueItem[] = []
-  if (reviewDecisionsRes.data && reviewDecisionsRes.data.length > 0) {
-    const claimIds = reviewDecisionsRes.data.map(d => d.claim_id)
-    const { data: claimsData } = await supabase
-      .from('claims')
-      .select('id, patient_id')
-      .in('id', claimIds)
+  let batchQueue: BatchQueueItem[] = []
 
-    reviewQueue = reviewDecisionsRes.data.map(d => {
-      const claim = (claimsData || []).find(c => c.id === d.claim_id)
-      return {
-        id: d.id,
-        patient_id: claim?.patient_id || 'Unknown',
-        reason_code: d.manual_review_code || d.reason || 'Needs Review'
-      }
-    })
+  if (batchIds.length > 0) {
+    const [
+      upliftRes,
+      manualReviewRes,
+      totalClaimsRes,
+      activeBatchesRes,
+      approvedDecisionsRes,
+      reviewDecisionsRes,
+      recentBatchesRes
+    ] = await Promise.all([
+      supabase
+        .from('routing_decisions')
+        .select('uplift_amount')
+        .in('batch_id', batchIds)
+        .eq('decision', 'approved'),
+      supabase
+        .from('routing_decisions')
+        .select('*', { count: 'exact', head: true })
+        .in('batch_id', batchIds)
+        .eq('decision', 'manual_review'),
+      supabase
+        .from('claims')
+        .select('*', { count: 'exact', head: true })
+        .in('batch_id', batchIds),
+      supabase
+        .from('batches')
+        .select('*', { count: 'exact', head: true })
+        .eq('client_id', profile.client_id)
+        .eq('status', 'open'),
+      supabase
+        .from('routing_decisions')
+        .select('id, recommended_plan, uplift_amount, claim_id')
+        .eq('decision', 'approved')
+        .in('batch_id', batchIds)
+        .order('created_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('routing_decisions')
+        .select('id, manual_review_code, reason, claim_id')
+        .eq('decision', 'manual_review')
+        .in('batch_id', batchIds)
+        .order('created_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('batches')
+        .select('id, name, status, total_claims')
+        .eq('client_id', profile.client_id)
+        .order('created_at', { ascending: false })
+        .limit(5)
+    ])
+
+    estimatedUplift = (upliftRes.data || []).reduce((sum, d) => sum + (Number(d.uplift_amount) || 0), 0)
+    manualReviewCount = manualReviewRes.count || 0
+    totalClaimsCount = totalClaimsRes.count || 0
+    activeBatchesCount = activeBatchesRes.count || 0
+
+    // Fetch claims in batch for Column 1
+    if (approvedDecisionsRes.data && approvedDecisionsRes.data.length > 0) {
+      const claimIds = approvedDecisionsRes.data.map(d => d.claim_id)
+      const { data: claimsData } = await supabase
+        .from('claims')
+        .select('id, patient_id')
+        .in('id', claimIds)
+
+      approvedQueue = approvedDecisionsRes.data.map(d => {
+        const claim = (claimsData || []).find(c => c.id === d.claim_id)
+        return {
+          id: d.id,
+          patient_id: claim?.patient_id || 'Unknown',
+          recommended_plan: d.recommended_plan || '',
+          uplift_amount: Number(d.uplift_amount) || 0
+        }
+      })
+    }
+
+    // Fetch claims in batch for Column 2
+    if (reviewDecisionsRes.data && reviewDecisionsRes.data.length > 0) {
+      const claimIds = reviewDecisionsRes.data.map(d => d.claim_id)
+      const { data: claimsData } = await supabase
+        .from('claims')
+        .select('id, patient_id')
+        .in('id', claimIds)
+
+      reviewQueue = reviewDecisionsRes.data.map(d => {
+        const claim = (claimsData || []).find(c => c.id === d.claim_id)
+        return {
+          id: d.id,
+          patient_id: claim?.patient_id || 'Unknown',
+          reason_code: d.manual_review_code || d.reason || 'Needs Review'
+        }
+      })
+    }
+
+    batchQueue = (recentBatchesRes.data || []).map(b => ({
+      id: b.id,
+      name: b.name,
+      status: b.status,
+      total_claims: Number(b.total_claims) || 0
+    }))
   }
-
-  const batchQueue: BatchQueueItem[] = (recentBatchesRes.data || []).map(b => ({
-    id: b.id,
-    name: b.name,
-    status: b.status,
-    total_claims: Number(b.total_claims) || 0
-  }))
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -217,7 +234,7 @@ export default async function DashboardPage() {
                 Claims Needing Review
               </div>
               <div className="mt-2 text-3xl font-extrabold text-[#0a1628] font-display">
-                {manualReviewRes.count || 0}
+                {manualReviewCount}
               </div>
             </div>
 
@@ -227,7 +244,7 @@ export default async function DashboardPage() {
                 Total Claims Analyzed
               </div>
               <div className="mt-2 text-3xl font-extrabold text-[#0a1628] font-display">
-                {totalClaimsRes.count || 0}
+                {totalClaimsCount}
               </div>
             </div>
 
@@ -237,7 +254,7 @@ export default async function DashboardPage() {
                 Active Batches
               </div>
               <div className="mt-2 text-3xl font-extrabold text-[#0a1628] font-display">
-                {activeBatchesRes.count || 0}
+                {activeBatchesCount}
               </div>
             </div>
           </div>
