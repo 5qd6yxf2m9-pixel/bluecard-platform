@@ -284,19 +284,20 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
 
         // Fetch matching rules and mappings for resolving CARC Codes
         const { data: carcData } = await supabase.from('carc_rarc_mapping').select('carc_code, category, subcategory, carc_description')
-        const carcMap = new Map((carcData || []).map(c => [c.carc_code, c]))
+        const carcMap = new Map((carcData || []).map(c => [String(c.carc_code).trim(), c]))
 
         const { data: xrData } = await supabase.from('xr_rules').select('denial_code, root_cause, recommended_action')
-        const xrMap = new Map((xrData || []).map(x => [x.denial_code, x]))
+        const xrMap = new Map((xrData || []).map(x => [String(x.denial_code).trim(), x]))
 
         // Map resolved data and setup insert payloads
         const claimsToInsert = rawRecords.map(r => {
-          const carcInfo = carcMap.get(r.carc_code) || carcMap.get(String(r.carc_code))
-          const xrInfo = xrMap.get(r.carc_code) || xrMap.get(String(r.carc_code))
+          const carcKey = String(r.carc_code).trim()
+          const carcInfo = carcMap.get(carcKey)
+          const xrInfo = xrMap.get(carcKey)
 
-          const rawCategory = carcInfo?.category || 'Other'
+          const rawCategory = carcInfo?.category ?? 'Other'
           const category = standardizeCategory(rawCategory)
-          const rootCause = xrInfo?.root_cause || carcInfo?.carc_description || 'Unknown'
+          const rootCause = xrInfo?.root_cause ?? carcInfo?.carc_description ?? 'See action plan'
           const recommendedAction = xrInfo?.recommended_action || null
 
           return {
