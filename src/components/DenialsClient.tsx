@@ -122,6 +122,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'open' | 'appealed' | 'resolved' | 'dismissed'>('open')
+  const [denialSubTab, setDenialSubTab] = useState<'upload' | 'previous_uploads'>('upload')
   const [claims, setClaims] = useState<DenialClaim[]>(initialClaims)
   const [batches, setBatches] = useState<DenialBatch[]>([])
 
@@ -646,97 +647,125 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
           </div>
         </div>
 
-        {/* Previous Uploads Table */}
-        <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm overflow-hidden">
-          <h2 className="text-lg font-bold text-[#0a1628] font-display mb-4">
-            Previous Uploads
-          </h2>
-          {batches.length === 0 ? (
-            <div className="text-sm text-gray-500 py-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
-              No uploads yet
-            </div>
-          ) : (
-            <div className="overflow-x-auto -mx-6 -mb-6">
-              <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
-                <thead>
-                  <tr className="text-gray-500 font-semibold text-xs uppercase tracking-wider bg-gray-50">
-                    <th className="px-6 py-3">Name</th>
-                    <th className="px-6 py-3">Status</th>
-                    <th className="px-6 py-3 text-right">Total Claims</th>
-                    <th className="px-6 py-3 text-right">Denied Dollars</th>
-                    <th className="px-6 py-3 text-right">Recoverable</th>
-                    <th className="px-6 py-3">Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
-                  {batches.map(batch => (
-                    <tr key={batch.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-[#0a1628]">{batch.name}</td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold ${
-                          batch.status === 'completed'
-                            ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20'
-                            : batch.status === 'processing'
-                            ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20'
-                            : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20'
-                        }`}>
-                          {batch.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right text-gray-600">{batch.total_claims}</td>
-                      <td className="px-6 py-4 text-right text-gray-900 font-medium">{formatCurrency(batch.total_denied_dollars || 0)}</td>
-                      <td className="px-6 py-4 text-right text-[#16a34a] font-semibold">{formatCurrency(batch.recoverable_amount || 0)}</td>
-                      <td className="px-6 py-4 text-gray-500">{new Date(batch.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+        {/* Denial Upload / History Tabs */}
+        <div className="bg-white border-b border-gray-200 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+            <button
+              onClick={() => setDenialSubTab('upload')}
+              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+                denialSubTab === 'upload'
+                  ? 'border-[#0a1628] text-[#0a1628]'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              Upload
+            </button>
+            <button
+              onClick={() => setDenialSubTab('previous_uploads')}
+              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+                denialSubTab === 'previous_uploads'
+                  ? 'border-[#0a1628] text-[#0a1628]'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              Previous Uploads
+            </button>
+          </nav>
         </div>
 
-        {/* Upload card */}
-        <div className="bg-white rounded-xl border border-[#e2e8f0] p-8 shadow-sm">
-          <h2 className="text-lg font-bold text-[#0a1628] font-display mb-4">
-            Upload Denial File
-          </h2>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileInput}
-            className="hidden" 
-            accept=".csv"
-          />
-          <div 
-            onDragEnter={handleDrag}
-            onDragOver={handleDrag}
-            onDragLeave={handleDrag}
-            onDrop={handleDrop}
-            onClick={onButtonClick}
-            className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${
-              dragActive 
-                ? 'border-[#2563eb] bg-blue-50/50' 
-                : 'border-gray-300 hover:border-gray-400 bg-gray-50/50'
-            }`}
-          >
-            <svg className="h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-            </svg>
-            <span className="text-sm font-bold text-gray-700">
-              Drag and drop your denials CSV here, or click to browse
-            </span>
-            <span className="text-xs text-gray-400 mt-2">
-              Supports Account, Claim_ID, Payer, Billed_Amount, Paid_Amount, CARC_Code, Product_Type...
-            </span>
+        {denialSubTab === 'upload' ? (
+          /* Upload card */
+          <div className="bg-white rounded-xl border border-[#e2e8f0] p-8 shadow-sm">
+            <h2 className="text-lg font-bold text-[#0a1628] font-display mb-4">
+              Upload Denial File
+            </h2>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileInput}
+              className="hidden" 
+              accept=".csv"
+            />
+            <div 
+              onDragEnter={handleDrag}
+              onDragOver={handleDrag}
+              onDragLeave={handleDrag}
+              onDrop={handleDrop}
+              onClick={onButtonClick}
+              className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${
+                dragActive 
+                  ? 'border-[#2563eb] bg-blue-50/50' 
+                  : 'border-gray-300 hover:border-gray-400 bg-gray-50/50'
+              }`}
+            >
+              <svg className="h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+              </svg>
+              <span className="text-sm font-bold text-gray-700">
+                Drag and drop your denials CSV here, or click to browse
+              </span>
+              <span className="text-xs text-gray-400 mt-2">
+                Supports Account, Claim_ID, Payer, Billed_Amount, Paid_Amount, CARC_Code, Product_Type...
+              </span>
+            </div>
+
+            {parsing && (
+              <div className="mt-4 flex items-center justify-center space-x-2 text-sm text-gray-500 font-semibold">
+                <div className="w-4 h-4 border-2 border-t-transparent border-[#2563eb] rounded-full animate-spin"></div>
+                <span>Processing and resolving rules codes...</span>
+              </div>
+            )}
           </div>
-
-          {parsing && (
-            <div className="mt-4 flex items-center justify-center space-x-2 text-sm text-gray-500 font-semibold">
-              <div className="w-4 h-4 border-2 border-t-transparent border-[#2563eb] rounded-full animate-spin"></div>
-              <span>Processing and resolving rules codes...</span>
-            </div>
-          )}
-        </div>
+        ) : (
+          /* Previous Uploads Table */
+          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm overflow-hidden">
+            <h2 className="text-lg font-bold text-[#0a1628] font-display mb-4">
+              Previous Uploads
+            </h2>
+            {batches.length === 0 ? (
+              <div className="text-sm text-gray-500 py-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                No uploads yet
+              </div>
+            ) : (
+              <div className="overflow-x-auto -mx-6 -mb-6">
+                <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+                  <thead>
+                    <tr className="text-gray-500 font-semibold text-xs uppercase tracking-wider bg-gray-50">
+                      <th className="px-6 py-3">Name</th>
+                      <th className="px-6 py-3">Status</th>
+                      <th className="px-6 py-3 text-right">Total Claims</th>
+                      <th className="px-6 py-3 text-right">Denied Dollars</th>
+                      <th className="px-6 py-3 text-right">Recoverable</th>
+                      <th className="px-6 py-3">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {batches.map(batch => (
+                      <tr key={batch.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-[#0a1628]">{batch.name}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold ${
+                            batch.status === 'completed'
+                              ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20'
+                              : batch.status === 'processing'
+                              ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20'
+                              : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20'
+                          }`}>
+                            {batch.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right text-gray-600">{batch.total_claims}</td>
+                        <td className="px-6 py-4 text-right text-gray-900 font-medium">{formatCurrency(batch.total_denied_dollars || 0)}</td>
+                        <td className="px-6 py-4 text-right text-[#16a34a] font-semibold">{formatCurrency(batch.recoverable_amount || 0)}</td>
+                        <td className="px-6 py-4 text-gray-500">{new Date(batch.created_at).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Analytics charts section */}
         {mounted && claims.length > 0 && (
