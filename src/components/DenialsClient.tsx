@@ -95,6 +95,16 @@ interface DenialsClientProps {
   initialClaims: DenialClaim[];
 }
 
+export interface DenialBatch {
+  id: string;
+  name: string;
+  status: 'processing' | 'completed' | 'error';
+  total_claims: number;
+  total_denied_dollars: number;
+  recoverable_amount: number;
+  created_at: string;
+}
+
 export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsClientProps) {
   const router = useRouter()
   const supabase = createClient()
@@ -113,12 +123,25 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'open' | 'appealed' | 'resolved' | 'dismissed'>('open')
   const [claims, setClaims] = useState<DenialClaim[]>(initialClaims)
+  const [batches, setBatches] = useState<DenialBatch[]>([])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const fetchDenialBatches = async () => {
+    const { data, error: fetchErr } = await supabase
+      .from('denial_batches')
+      .select('id, name, status, total_claims, total_denied_dollars, recoverable_amount, created_at')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false })
+    if (!fetchErr && data) {
+      setBatches(data as DenialBatch[])
+    }
+  }
+
   useEffect(() => {
     setMounted(true)
-  }, [])
+    fetchDenialBatches()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setClaims(initialClaims)
@@ -227,8 +250,28 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
     setSuccess(null)
     setParsing(true)
 
+    const parseDosDate = (dosStr: string | null | undefined): Date | null => {
+      if (!dosStr) return null
+      const cleaned = dosStr.trim()
+      const d = new Date(cleaned)
+      if (!isNaN(d.getTime())) return d
+      const parts = cleaned.split('/')
+      if (parts.length === 3) {
+        const m = parseInt(parts[0], 10) - 1
+        const d = parseInt(parts[1], 10)
+        let y = parseInt(parts[2], 10)
+        if (y < 100) {
+          y += y >= 50 ? 1900 : 2000
+        }
+        const customD = new Date(y, m, d)
+        if (!isNaN(customD.getTime())) return customD
+      }
+      return null
+    }
+
     const reader = new FileReader()
     reader.onload = async (e) => {
+      let createdBatchId: string | null = null
       try {
         const text = e.target?.result as string
         const rows = parseCSV(text)
@@ -304,6 +347,51 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
           throw new Error("No valid rows could be parsed from the CSV file.")
         }
 
+        // Generate batch name from min and max DOS
+        const dosDates = rawRecords
+          .map(r => parseDosDate(r.dos))
+          .filter((d): d is Date => d !== null)
+          .sort((a, b) => a.getTime() - b.getTime())
+
+        let batchName = ''
+        if (dosDates.length > 0) {
+          const formatDate = (date: Date) => {
+            const mm = String(date.getMonth() + 1).padStart(2, '0')
+            const dd = String(date.getDate()).padStart(2, '0')
+            const yy = String(date.getFullYear()).slice(-2)
+            return `${mm}/${dd}/${yy}`
+          }
+          batchName = `Denials: ${formatDate(dosDates[0])} - ${formatDate(dosDates[dosDates.length - 1])}`
+        } else {
+          const now = new Date()
+          const mm = String(now.getMonth() + 1).padStart(2, '0')
+          const dd = String(now.getDate()).padStart(2, '0')
+          const yy = String(now.getFullYear()).slice(-2)
+          batchName = `Denial Upload ${mm}/${dd}/${yy}`
+        }
+
+        // Create the Denial Batch record
+        const { data: batchData, error: batchError } = await supabase
+          .from('denial_batches')
+          .insert({
+            client_id: clientId,
+            name: batchName,
+            status: 'processing',
+            total_claims: rawRecords.length,
+            total_denied_dollars: rawRecords.reduce((sum, r) => sum + (r.billed_amount || 0), 0),
+            recoverable_amount: rawRecords.reduce((sum, r) => sum + ((r.billed_amount || 0) - (r.paid_amount || 0)), 0),
+            created_at: new Date().toISOString()
+          })
+          .select('id')
+          .single()
+
+        if (batchError || !batchData) {
+          throw new Error("Failed to initialize denial batch: " + (batchError?.message || "Unknown error"))
+        }
+
+        createdBatchId = batchData.id
+        await fetchDenialBatches()
+
         // Fetch matching rules and mappings for resolving CARC Codes
         const { data: carcData } = await supabase.from('carc_rarc_mapping').select('carc_code, category, subcategory, carc_description')
         const carcMap = new Map((carcData || []).map(c => [String(c.carc_code).trim(), c]))
@@ -325,6 +413,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
           return {
             ...r,
             client_id: clientId,
+            batch_id: createdBatchId,
             category,
             root_cause: rootCause,
             recommended_action: recommendedAction,
@@ -345,11 +434,27 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
           }
         }
 
+        // Update batch status to completed
+        await supabase
+          .from('denial_batches')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', createdBatchId)
+
         setSuccess(`Successfully imported and processed ${claimsToInsert.length} denial claims.`)
         await fetchDenialClaims()
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Failed to import CSV remit records."
-        setError(msg)
+        await fetchDenialBatches()
+      } catch {
+        if (createdBatchId) {
+          await supabase
+            .from('denial_batches')
+            .update({ status: 'error' })
+            .eq('id', createdBatchId)
+          await fetchDenialBatches()
+        }
+        setError("Failed to import CSV remit records.")
       } finally {
         setParsing(false)
       }
@@ -542,6 +647,55 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recoverable Opportunities</div>
             <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#16a34a] font-display">{recoverableOpportunities}</div>
           </div>
+        </div>
+
+        {/* Previous Uploads Table */}
+        <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm overflow-hidden">
+          <h2 className="text-lg font-bold text-[#0a1628] font-display mb-4">
+            Previous Uploads
+          </h2>
+          {batches.length === 0 ? (
+            <div className="text-sm text-gray-500 py-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              No uploads yet
+            </div>
+          ) : (
+            <div className="overflow-x-auto -mx-6 -mb-6">
+              <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+                <thead>
+                  <tr className="text-gray-500 font-semibold text-xs uppercase tracking-wider bg-gray-50">
+                    <th className="px-6 py-3">Name</th>
+                    <th className="px-6 py-3">Status</th>
+                    <th className="px-6 py-3 text-right">Total Claims</th>
+                    <th className="px-6 py-3 text-right">Denied Dollars</th>
+                    <th className="px-6 py-3 text-right">Recoverable</th>
+                    <th className="px-6 py-3">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {batches.map(batch => (
+                    <tr key={batch.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 font-semibold text-[#0a1628]">{batch.name}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold ${
+                          batch.status === 'completed'
+                            ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20'
+                            : batch.status === 'processing'
+                            ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20'
+                            : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20'
+                        }`}>
+                          {batch.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right text-gray-600">{batch.total_claims}</td>
+                      <td className="px-6 py-4 text-right text-gray-900 font-medium">{formatCurrency(batch.total_denied_dollars || 0)}</td>
+                      <td className="px-6 py-4 text-right text-[#16a34a] font-semibold">{formatCurrency(batch.recoverable_amount || 0)}</td>
+                      <td className="px-6 py-4 text-gray-500">{new Date(batch.created_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Upload card */}

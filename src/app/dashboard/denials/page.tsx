@@ -1,4 +1,9 @@
 /*
+-- Run in Supabase: 
+-- alter table denial_batches enable row level security; (already done)
+-- create policy "users update own denial batches" on denial_batches for update using (client_id = (select client_id from profiles where id = auth.uid()));
+-- Note: Make sure to run this update policy in Supabase before testing!
+
 -- Run in Supabase: create policy "users update own denial claims" on denial_claims for update using (client_id = (select client_id from profiles where id = auth.uid()));
 */
 
