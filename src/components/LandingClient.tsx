@@ -170,7 +170,6 @@ export function LandingClient() {
           <div className="hidden md:flex space-x-8 items-center text-sm font-semibold text-gray-300">
             <a href="#platform" className="hover:text-white transition-colors">Platform</a>
             <a href="#modules" className="hover:text-white transition-colors">Modules</a>
-            <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <Link href="/login" className="hover:text-white transition-colors">
               Contact
             </Link>
@@ -244,7 +243,7 @@ export function LandingClient() {
             <div className="space-y-3 p-6">
               <div className="text-5xl font-extrabold font-display text-[#2563eb]">11.8%</div>
               <p className="text-gray-600 text-sm font-medium leading-relaxed">
-                Average claim denial rate in 2024 — up from 10.2% three years ago
+                Claim denial rate — up from 10.2% just three years ago and still climbing
               </p>
             </div>
             <div className="space-y-3 p-6">
@@ -489,110 +488,6 @@ export function LandingClient() {
         </div>
       </section>
 
-      {/* SECTION 7 — PRICING */}
-      <section id="pricing" className="bg-white py-24 px-6 md:px-12">
-        <div className="max-w-7xl mx-auto space-y-16">
-          <div className="text-center space-y-4">
-            <h2 className="font-display text-3xl md:text-4xl font-extrabold text-[#0a1628] tracking-tight">
-              Simple, transparent pricing.
-            </h2>
-            <p className="text-gray-500 text-sm md:text-base max-w-xl mx-auto">
-              One flat monthly fee per module. No percentage of recovery. No surprise charges.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            
-            {/* Card 1 - Starter */}
-            <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm flex flex-col justify-between min-h-[400px]">
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-display font-extrabold text-xl text-[#0a1628]">Starter</h3>
-                  <p className="text-gray-500 text-sm mt-1">1 module</p>
-                </div>
-                <div className="text-3xl font-extrabold font-display text-[#0a1628]">
-                  Contact us
-                </div>
-                <ul className="space-y-3 text-xs text-gray-600 font-semibold pt-4">
-                  <li>Single module access</li>
-                  <li>Up to 10,000 claims/month</li>
-                  <li>Email support</li>
-                  <li>Standard onboarding</li>
-                </ul>
-              </div>
-              <div className="pt-8">
-                <Link 
-                  href="/login" 
-                  className="block w-full text-center border border-[#0a1628] text-[#0a1628] hover:bg-gray-50 py-3 rounded-md font-bold text-sm transition-all duration-300"
-                >
-                  Request Pricing
-                </Link>
-              </div>
-            </div>
-
-            {/* Card 2 - Professional */}
-            <div className="bg-white rounded-xl border-2 border-[#2563eb] p-8 shadow-md flex flex-col justify-between min-h-[400px] relative">
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#2563eb] text-white px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest">
-                Most Popular
-              </span>
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-display font-extrabold text-xl text-[#0a1628]">Professional</h3>
-                  <p className="text-gray-500 text-sm mt-1">2-3 modules</p>
-                </div>
-                <div className="text-3xl font-extrabold font-display text-[#0a1628]">
-                  Contact us
-                </div>
-                <ul className="space-y-3 text-xs text-gray-600 font-semibold pt-4">
-                  <li>Multi-module access</li>
-                  <li>Up to 50,000 claims/month</li>
-                  <li>Priority support</li>
-                  <li>Dedicated onboarding</li>
-                  <li>Cross-module dashboard</li>
-                </ul>
-              </div>
-              <div className="pt-8">
-                <Link 
-                  href="/login" 
-                  className="block w-full text-center bg-[#2563eb] hover:bg-blue-700 text-white py-3 rounded-md font-bold text-sm transition-all duration-300"
-                >
-                  Request Pricing
-                </Link>
-              </div>
-            </div>
-
-            {/* Card 3 - Enterprise */}
-            <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm flex flex-col justify-between min-h-[400px]">
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-display font-extrabold text-xl text-[#0a1628]">Enterprise</h3>
-                  <p className="text-gray-500 text-sm mt-1">Full platform</p>
-                </div>
-                <div className="text-3xl font-extrabold font-display text-[#0a1628]">
-                  Contact us
-                </div>
-                <ul className="space-y-3 text-xs text-gray-600 font-semibold pt-4">
-                  <li>All 6 modules</li>
-                  <li>Unlimited claims</li>
-                  <li>Dedicated account manager</li>
-                  <li>Custom onboarding</li>
-                  <li>HIPAA BAA included</li>
-                </ul>
-              </div>
-              <div className="pt-8">
-                <Link 
-                  href="/login" 
-                  className="block w-full text-center border border-[#0a1628] text-[#0a1628] hover:bg-gray-50 py-3 rounded-md font-bold text-sm transition-all duration-300"
-                >
-                  Request Pricing
-                </Link>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
       {/* SECTION 8 — CTA BANNER */}
       <section className="bg-[#0a1628] py-28 px-6 md:px-12 text-center text-white">
         <div className="max-w-4xl mx-auto space-y-6">
@@ -629,7 +524,6 @@ export function LandingClient() {
           <div className="flex flex-wrap justify-center gap-6 text-xs font-semibold">
             <a href="#platform" className="hover:text-white transition-colors">Platform</a>
             <a href="#modules" className="hover:text-white transition-colors">Modules</a>
-            <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <Link href="/login" className="hover:text-white transition-colors">Contact</Link>
             <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
           </div>
