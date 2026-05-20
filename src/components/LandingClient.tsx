@@ -170,11 +170,14 @@ export function LandingClient() {
           <div className="hidden md:flex space-x-8 items-center text-sm font-semibold text-gray-300">
             <a href="#platform" className="hover:text-white transition-colors">Platform</a>
             <a href="#modules" className="hover:text-white transition-colors">Modules</a>
-            <Link href="/login" className="hover:text-white transition-colors">
+            <Link href="/contact" className="hover:text-white transition-colors">
               Contact
             </Link>
           </div>
-          <div>
+          <div className="flex items-center space-x-6">
+            <Link href="/login" className="text-white hover:text-gray-300 transition-colors text-sm font-semibold">
+              Sign In
+            </Link>
             <Link 
               href="/login" 
               className="bg-[#2563eb] text-white hover:bg-blue-700 px-5 py-2 rounded-md font-semibold text-sm transition-all duration-300 inline-block"
