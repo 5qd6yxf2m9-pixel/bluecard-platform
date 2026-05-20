@@ -275,9 +275,6 @@ export default async function DashboardPage() {
                   <h3 className="text-xl font-bold text-[#0a1628] font-display">
                     DenialLogic
                   </h3>
-                  <span className="inline-flex items-center rounded-md bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-[#d97706] ring-1 ring-inset ring-amber-600/20">
-                    Beta
-                  </span>
                 </div>
                 <p className="text-gray-500 text-sm mt-2">
                   Denial trend analysis + pattern detection

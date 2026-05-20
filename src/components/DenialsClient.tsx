@@ -593,9 +593,6 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
               <span className="text-2xl font-bold font-display tracking-tight text-white">
                 DenialLogic
               </span>
-              <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">
-                Beta
-              </span>
             </div>
           </div>
           <div className="flex items-center space-x-5">
