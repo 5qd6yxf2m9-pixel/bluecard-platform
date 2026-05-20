@@ -179,7 +179,7 @@ export function LandingClient() {
               Sign In
             </Link>
             <Link 
-              href="/login" 
+              href="/contact" 
               className="bg-[#2563eb] text-white hover:bg-blue-700 px-5 py-2 rounded-md font-semibold text-sm transition-all duration-300 inline-block"
             >
               Request Demo
@@ -205,7 +205,7 @@ export function LandingClient() {
             </p>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-4">
               <Link 
-                href="/login" 
+                href="/contact" 
                 className="bg-[#2563eb] text-white hover:bg-blue-700 px-8 py-4 rounded-md font-bold text-center transition-all duration-300"
               >
                 Request a Demo
@@ -502,7 +502,7 @@ export function LandingClient() {
           </p>
           <div className="pt-6">
             <Link 
-              href="/login" 
+              href="/contact" 
               className="bg-[#2563eb] hover:bg-blue-700 text-white px-8 py-4 rounded-md font-bold text-base transition-all duration-300 inline-block"
             >
               Request a Demo
@@ -527,7 +527,7 @@ export function LandingClient() {
           <div className="flex flex-wrap justify-center gap-6 text-xs font-semibold">
             <a href="#platform" className="hover:text-white transition-colors">Platform</a>
             <a href="#modules" className="hover:text-white transition-colors">Modules</a>
-            <Link href="/login" className="hover:text-white transition-colors">Contact</Link>
+            <Link href="/contact" className="hover:text-white transition-colors">Contact</Link>
             <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
           </div>
 
