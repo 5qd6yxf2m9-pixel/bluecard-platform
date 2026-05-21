@@ -40,7 +40,13 @@ export interface DenialClaim {
   category: string;
   root_cause: string;
   recommended_action: string;
-  status: 'open' | 'appealed' | 'resolved' | 'dismissed';
+  status: 'open' | 'appealed' | 'resolved' | 'dismissed' | 'in_appeal';
+  appeal_date?: string | null;
+  appeal_reason?: string | null;
+  appeal_outcome?: string | null;
+  recovered_amount?: number | null;
+  resolution_date?: string | null;
+  assigned_to?: string | null;
 }
 
 export const standardizeCategory = (cat: string | null | undefined): string => {
@@ -126,6 +132,14 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   const [claims, setClaims] = useState<DenialClaim[]>(initialClaims)
   const [batches, setBatches] = useState<DenialBatch[]>([])
 
+  const [appealingClaimId, setAppealingClaimId] = useState<string | null>(null)
+  const [appealReason, setAppealReason] = useState<string>('')
+  const [appealError, setAppealError] = useState<string | null>(null)
+
+  const [resolvingClaimId, setResolvingClaimId] = useState<string | null>(null)
+  const [appealOutcome, setAppealOutcome] = useState<string>('approved')
+  const [recoveredAmount, setRecoveredAmount] = useState<number>(0)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchDenialBatches = async () => {
@@ -168,9 +182,11 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   const recoverableOpportunities = claims.filter(c => c.recommended_action && c.recommended_action.trim() !== '').length
 
   const openCount = claims.filter(c => c.status === 'open' || !c.status).length
-  const appealedCount = claims.filter(c => c.status === 'appealed').length
+  const appealedCount = claims.filter(c => c.status === 'appealed' || c.status === 'in_appeal').length
   const resolvedCount = claims.filter(c => c.status === 'resolved').length
   const dismissedCount = claims.filter(c => c.status === 'dismissed').length
+
+  const totalRecovered = claims.reduce((sum, c) => sum + (c.recovered_amount && Number(c.recovered_amount) > 0 ? Number(c.recovered_amount) : 0), 0)
 
   // CSV parsing functions
   const handleDrag = (e: React.DragEvent) => {
@@ -487,12 +503,143 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
     }
   }
 
+  const handleSubmitAppeal = async () => {
+    if (!appealingClaimId) return
+    if (!appealReason.trim()) {
+      setAppealError("Please enter an appeal reason")
+      return
+    }
+    setUpdatingId(appealingClaimId)
+    try {
+      const todayStr = new Date().toISOString().split('T')[0]
+      const { error: updateError } = await supabase
+        .from('denial_claims')
+        .update({
+          status: 'in_appeal',
+          appeal_date: todayStr,
+          appeal_reason: appealReason
+        })
+        .eq('id', appealingClaimId)
+      if (updateError) throw updateError
+
+      setAppealingClaimId(null)
+      setAppealReason('')
+      setAppealError(null)
+      await fetchDenialClaims()
+    } catch {
+      setAppealError("Failed to submit appeal.")
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const handleSubmitResolve = async () => {
+    if (!resolvingClaimId) return
+    setUpdatingId(resolvingClaimId)
+    try {
+      const todayStr = new Date().toISOString().split('T')[0]
+      const { error: updateError } = await supabase
+        .from('denial_claims')
+        .update({
+          status: 'resolved',
+          appeal_outcome: appealOutcome,
+          recovered_amount: recoveredAmount,
+          resolution_date: todayStr
+        })
+        .eq('id', resolvingClaimId)
+      if (updateError) throw updateError
+
+      setResolvingClaimId(null)
+      setAppealOutcome('approved')
+      setRecoveredAmount(0)
+      await fetchDenialClaims()
+    } catch {
+      setError("Failed to resolve claim.")
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const formatAppealDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return 'N/A'
+    try {
+      const parts = dateStr.split('-')
+      if (parts.length === 3) {
+        const y = parts[0].slice(-2)
+        const m = parts[1]
+        const d = parts[2]
+        return `${m}/${d}/${y}`
+      }
+      const date = new Date(dateStr)
+      if (isNaN(date.getTime())) {
+        return dateStr
+      }
+      const mm = String(date.getMonth() + 1).padStart(2, '0')
+      const dd = String(date.getDate()).padStart(2, '0')
+      const yy = String(date.getFullYear()).slice(-2)
+      return `${mm}/${dd}/${yy}`
+    } catch {
+      return dateStr
+    }
+  }
+
+  const renderOutcomeBadge = (outcome: string | null | undefined) => {
+    if (!outcome) return null
+    const outLower = outcome.toLowerCase().trim()
+    if (outLower === 'approved') {
+      return (
+        <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-0.5 text-xs font-bold text-green-700 ring-1 ring-inset ring-green-600/20">
+          Approved
+        </span>
+      )
+    }
+    if (outLower === 'partially_approved') {
+      return (
+        <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-600/20">
+          Partially Approved
+        </span>
+      )
+    }
+    if (outLower === 'denied') {
+      return (
+        <span className="inline-flex items-center rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700 ring-1 ring-inset ring-red-600/20">
+          Denied
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-0.5 text-xs font-bold text-gray-700 ring-1 ring-inset ring-gray-600/20">
+        {outcome}
+      </span>
+    )
+  }
+
+  const renderAging = (denialDateStr: string | null | undefined) => {
+    if (!denialDateStr) return <span className="text-gray-400">N/A</span>
+    try {
+      const days = Math.floor((Date.now() - new Date(denialDateStr).getTime()) / (1000 * 60 * 60 * 24))
+      if (isNaN(days)) return <span className="text-gray-400">N/A</span>
+      
+      if (days <= 30) {
+        return <span className="text-green-600 font-semibold">0-30d</span>
+      } else if (days <= 60) {
+        return <span className="text-amber-600 font-semibold">31-60d</span>
+      } else if (days <= 90) {
+        return <span className="text-orange-600 font-semibold">61-90d</span>
+      } else {
+        return <span className="text-red-600 font-semibold">90+d</span>
+      }
+    } catch {
+      return <span className="text-gray-400">N/A</span>
+    }
+  }
+
   // Work Queue Local Filter & Pagination
   const filteredClaims = claims.filter(c => {
     // Tab status filter
     const matchesStatus =
       (activeTab === 'open' && (c.status === 'open' || !c.status)) ||
-      (activeTab === 'appealed' && c.status === 'appealed') ||
+      (activeTab === 'appealed' && (c.status === 'appealed' || c.status === 'in_appeal')) ||
       (activeTab === 'resolved' && c.status === 'resolved') ||
       (activeTab === 'dismissed' && c.status === 'dismissed')
 
@@ -626,7 +773,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
         )}
 
         {/* Aggregates Summary cards */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-5">
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Denied Dollars</div>
             <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#dc2626] font-display">
@@ -644,6 +791,13 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recoverable Opportunities</div>
             <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#16a34a] font-display">{recoverableOpportunities}</div>
+          </div>
+          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Recovered</div>
+            <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#16a34a] font-display">
+              {formatCurrency(totalRecovered)}
+            </div>
+            <div className="text-[10px] text-gray-400 font-semibold mt-1">From appealed claims</div>
           </div>
         </div>
 
@@ -979,8 +1133,16 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Account</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Payer</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">DOS</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Aging</th>
                     <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Denied</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">CARC</th>
+                    {(activeTab === 'appealed' || activeTab === 'resolved') && (
+                      <>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Appeal Date</th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Outcome</th>
+                        <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Recovered</th>
+                      </>
+                    )}
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -988,7 +1150,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedClaims.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center text-sm text-gray-500 font-semibold">
+                      <td colSpan={activeTab === 'appealed' || activeTab === 'resolved' ? 12 : 9} className="px-6 py-12 text-center text-sm text-gray-500 font-semibold">
                         No denial claims in the current queue matching filters.
                       </td>
                     </tr>
@@ -1023,6 +1185,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                               <div className="text-xs text-gray-400 font-medium">{c.product_type}</div>
                             </td>
                             <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDOS(c.dos)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{renderAging(c.denial_date)}</td>
                             <td className="px-6 py-4 text-right font-bold text-[#dc2626]">{formatCurrency(denied)}</td>
                             <td className="px-6 py-4">
                               <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800 ring-1 ring-inset ring-amber-600/20">
@@ -1032,15 +1195,30 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                                 <div className="text-xs text-gray-500 mt-1 font-medium">{c.category}</div>
                               )}
                             </td>
-                            <td className="px-6 py-4">
+                            {(activeTab === 'appealed' || activeTab === 'resolved') && (
+                              <>
+                                <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
+                                  {c.appeal_date ? formatAppealDate(c.appeal_date) : ''}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  {renderOutcomeBadge(c.appeal_outcome)}
+                                </td>
+                                <td className="px-6 py-4 text-right font-bold text-green-600 whitespace-nowrap">
+                                  {c.recovered_amount && Number(c.recovered_amount) > 0 
+                                    ? formatCurrency(Number(c.recovered_amount)) 
+                                    : ''}
+                                </td>
+                              </>
+                            )}
+                            <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${
                                 c.status === 'resolved' 
                                   ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' 
-                                  : c.status === 'appealed'
+                                  : c.status === 'appealed' || c.status === 'in_appeal'
                                   ? 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20'
                                   : 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20'
                               }`}>
-                                {c.status}
+                                {c.status === 'in_appeal' ? 'in appeal' : c.status || 'open'}
                               </span>
                             </td>
                              <td className="px-6 py-4 text-right whitespace-nowrap">
@@ -1048,14 +1226,22 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                                  {activeTab === 'open' && (
                                    <>
                                      <button
-                                       onClick={() => handleUpdateStatus(c.id, 'appealed')}
+                                       onClick={() => {
+                                         setAppealingClaimId(c.id)
+                                         setAppealReason('')
+                                         setAppealError(null)
+                                       }}
                                        disabled={updatingId === c.id}
                                        className="bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
                                      >
                                        Appeal
                                      </button>
                                      <button
-                                       onClick={() => handleUpdateStatus(c.id, 'resolved')}
+                                       onClick={() => {
+                                         setResolvingClaimId(c.id)
+                                         setAppealOutcome('approved')
+                                         setRecoveredAmount(0)
+                                       }}
                                        disabled={updatingId === c.id}
                                        className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
                                      >
@@ -1073,7 +1259,11 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                                  {activeTab === 'appealed' && (
                                    <>
                                      <button
-                                       onClick={() => handleUpdateStatus(c.id, 'resolved')}
+                                       onClick={() => {
+                                         setResolvingClaimId(c.id)
+                                         setAppealOutcome('approved')
+                                         setRecoveredAmount(0)
+                                       }}
                                        disabled={updatingId === c.id}
                                        className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
                                      >
@@ -1107,7 +1297,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                           {/* Expanded Row */}
                           {expandedClaimId === c.id && (
                             <tr className="bg-gray-50/50">
-                              <td colSpan={8} className="px-6 py-5 border-b border-gray-200">
+                              <td colSpan={activeTab === 'appealed' || activeTab === 'resolved' ? 12 : 9} className="px-6 py-5 border-b border-gray-200">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-xs md:text-sm">
                                   
                                   {/* Section 1: Financials */}
@@ -1228,6 +1418,109 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
         </div>
 
       </main>
+
+      {/* Appeal Modal */}
+      {appealingClaimId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4">
+            <h3 className="font-display font-bold text-base text-[#0a1628]">Appeal Claim</h3>
+            {appealError && (
+              <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-medium">
+                {appealError}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Appeal Reason</label>
+              <textarea
+                value={appealReason}
+                onChange={(e) => {
+                  setAppealReason(e.target.value)
+                  setAppealError(null)
+                }}
+                placeholder="Enter the reason for this appeal..."
+                rows={4}
+                className="w-full text-sm border border-gray-300 rounded-lg p-2.5 outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAppealingClaimId(null)
+                  setAppealReason('')
+                  setAppealError(null)
+                }}
+                className="border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-xs font-semibold transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitAppeal}
+                disabled={updatingId !== null}
+                className="bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center"
+              >
+                {updatingId ? 'Submitting...' : 'Submit Appeal'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resolve Modal */}
+      {resolvingClaimId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4">
+            <h3 className="font-display font-bold text-base text-[#0a1628]">Resolve Appeal</h3>
+            
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Appeal Outcome</label>
+              <select
+                value={appealOutcome}
+                onChange={(e) => setAppealOutcome(e.target.value)}
+                className="w-full text-sm border border-gray-300 rounded-lg p-2.5 outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb] bg-white"
+              >
+                <option value="approved">Approved</option>
+                <option value="partially_approved">Partially Approved</option>
+                <option value="denied">Denied</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Recovered Amount ($)</label>
+              <input
+                type="number"
+                value={recoveredAmount === 0 ? '' : recoveredAmount}
+                onChange={(e) => setRecoveredAmount(Math.max(0, Number(e.target.value) || 0))}
+                placeholder="0"
+                className="w-full text-sm border border-gray-300 rounded-lg p-2.5 outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setResolvingClaimId(null)
+                  setAppealOutcome('approved')
+                  setRecoveredAmount(0)
+                }}
+                className="border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-xs font-semibold transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitResolve}
+                disabled={updatingId !== null}
+                className="bg-[#16a34a] hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center"
+              >
+                {updatingId ? 'Marking Resolved...' : 'Mark Resolved'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
