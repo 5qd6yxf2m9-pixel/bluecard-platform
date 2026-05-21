@@ -133,7 +133,8 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
   const [batches, setBatches] = useState<DenialBatch[]>([])
 
   const [appealingClaimId, setAppealingClaimId] = useState<string | null>(null)
-  const [appealReason, setAppealReason] = useState<string>('')
+  const [selectedAppealReason, setSelectedAppealReason] = useState<string>('')
+  const [appealNotes, setAppealNotes] = useState<string>('')
   const [appealError, setAppealError] = useState<string | null>(null)
 
   const [resolvingClaimId, setResolvingClaimId] = useState<string | null>(null)
@@ -505,25 +506,34 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
 
   const handleSubmitAppeal = async () => {
     if (!appealingClaimId) return
-    if (!appealReason.trim()) {
-      setAppealError("Please enter an appeal reason")
+    if (!selectedAppealReason) {
+      setAppealError("Please select an appeal reason")
+      return
+    }
+    if (selectedAppealReason === 'Other - See Notes' && !appealNotes.trim()) {
+      setAppealError("Notes are required when 'Other - See Notes' is selected")
       return
     }
     setUpdatingId(appealingClaimId)
     try {
       const todayStr = new Date().toISOString().split('T')[0]
+      const reasonToSave = appealNotes.trim()
+        ? `${selectedAppealReason} | Note: ${appealNotes.trim()}`
+        : selectedAppealReason
+
       const { error: updateError } = await supabase
         .from('denial_claims')
         .update({
           status: 'in_appeal',
           appeal_date: todayStr,
-          appeal_reason: appealReason
+          appeal_reason: reasonToSave
         })
         .eq('id', appealingClaimId)
       if (updateError) throw updateError
 
       setAppealingClaimId(null)
-      setAppealReason('')
+      setSelectedAppealReason('')
+      setAppealNotes('')
       setAppealError(null)
       await fetchDenialClaims()
     } catch {
@@ -1228,7 +1238,8 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                                      <button
                                        onClick={() => {
                                          setAppealingClaimId(c.id)
-                                         setAppealReason('')
+                                         setSelectedAppealReason('')
+                                         setAppealNotes('')
                                          setAppealError(null)
                                        }}
                                        disabled={updatingId === c.id}
@@ -1429,25 +1440,54 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                 {appealError}
               </div>
             )}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Appeal Reason</label>
-              <textarea
-                value={appealReason}
-                onChange={(e) => {
-                  setAppealReason(e.target.value)
-                  setAppealError(null)
-                }}
-                placeholder="Enter the reason for this appeal..."
-                rows={4}
-                className="w-full text-sm border border-gray-300 rounded-lg p-2.5 outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"
-              />
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Appeal Reason</label>
+                <select
+                  value={selectedAppealReason}
+                  onChange={(e) => {
+                    setSelectedAppealReason(e.target.value)
+                    setAppealError(null)
+                  }}
+                  className="w-full text-sm border border-gray-300 rounded-lg p-2.5 outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb] bg-white text-gray-900"
+                >
+                  <option value="" disabled>Select a reason...</option>
+                  <option value="Authorization Obtained - Missing from Original Claim">Authorization Obtained - Missing from Original Claim</option>
+                  <option value="Authorization Obtained - Submitted Retroactively">Authorization Obtained - Submitted Retroactively</option>
+                  <option value="Medical Necessity - Clinical Documentation Attached">Medical Necessity - Clinical Documentation Attached</option>
+                  <option value="Medical Necessity - Peer-to-Peer Review Requested">Medical Necessity - Peer-to-Peer Review Requested</option>
+                  <option value="Eligibility - Coverage Was Active on DOS">Eligibility - Coverage Was Active on DOS</option>
+                  <option value="Timely Filing - Proof of Original Submission Attached">Timely Filing - Proof of Original Submission Attached</option>
+                  <option value="Duplicate - Claim is Unique, Not a Duplicate">Duplicate - Claim is Unique, Not a Duplicate</option>
+                  <option value="Billing Error - Corrected Claim Being Resubmitted">Billing Error - Corrected Claim Being Resubmitted</option>
+                  <option value="Coding Error - Corrected CPT or Diagnosis Code">Coding Error - Corrected CPT or Diagnosis Code</option>
+                  <option value="COB - Primary EOB Attached">COB - Primary EOB Attached</option>
+                  <option value="Contract Rate - Payment Below Contracted Rate">Contract Rate - Payment Below Contracted Rate</option>
+                  <option value="Other - See Notes">Other - See Notes</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Notes</label>
+                <textarea
+                  value={appealNotes}
+                  onChange={(e) => {
+                    setAppealNotes(e.target.value)
+                    setAppealError(null)
+                  }}
+                  placeholder="Additional context or documentation details..."
+                  rows={3}
+                  className="w-full text-sm border border-gray-300 rounded-lg p-2.5 outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[#2563eb]"
+                />
+              </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => {
                   setAppealingClaimId(null)
-                  setAppealReason('')
+                  setSelectedAppealReason('')
+                  setAppealNotes('')
                   setAppealError(null)
                 }}
                 className="border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-xs font-semibold transition-all"
