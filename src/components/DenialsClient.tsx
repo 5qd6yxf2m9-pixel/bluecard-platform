@@ -128,6 +128,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims, appealAnalyt
   const router = useRouter()
   const supabase = createClient()
 
+  const [activeTopTab, setActiveTopTab] = useState<'workqueue' | 'analytics' | 'upload'>('workqueue')
   const [dragActive, setDragActive] = useState(false)
   const [parsing, setParsing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -780,7 +781,43 @@ export function DenialsClient({ clientId, userEmail, initialClaims, appealAnalyt
 
       {/* Main Body content */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full space-y-10">
-        
+
+        {/* Top-Level Tabs */}
+        <div className="bg-white border-b border-gray-200 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 -mt-10 mb-6">
+          <nav className="-mb-px flex space-x-8" aria-label="Top Tabs">
+            <button
+              onClick={() => setActiveTopTab('workqueue')}
+              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+                activeTopTab === 'workqueue'
+                  ? 'border-[#0a1628] text-[#0a1628]'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              Work Queue
+            </button>
+            <button
+              onClick={() => setActiveTopTab('analytics')}
+              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+                activeTopTab === 'analytics'
+                  ? 'border-[#0a1628] text-[#0a1628]'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              Analytics
+            </button>
+            <button
+              onClick={() => setActiveTopTab('upload')}
+              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+                activeTopTab === 'upload'
+                  ? 'border-[#0a1628] text-[#0a1628]'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              Upload
+            </button>
+          </nav>
+        </div>
+
         {/* Alerts */}
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium flex justify-between items-center">
@@ -795,337 +832,36 @@ export function DenialsClient({ clientId, userEmail, initialClaims, appealAnalyt
           </div>
         )}
 
-        {/* Aggregates Summary cards */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-5">
-          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Denied Dollars</div>
-            <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#dc2626] font-display">
-              {formatCurrency(totalDeniedDollars)}
+
+        {"/* TAB 1: WORK QUEUE */"}
+        <div style={{ display: activeTopTab === 'workqueue' ? 'block' : 'none' }} className="space-y-6">
+          {/* Compact Stat Bar */}
+          <div className="bg-white rounded-xl border border-[#e2e8f0] p-4 md:px-6 md:py-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex-1 text-center md:text-left">
+              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Total Denied</div>
+              <div className="mt-1 text-lg font-bold text-[#dc2626] font-display">{formatCurrency(totalDeniedDollars)}</div>
+            </div>
+            <div className="hidden md:block h-8 w-px bg-gray-200" />
+            <div className="flex-1 text-center md:text-left">
+              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Open Claims</div>
+              <div className="mt-1 text-lg font-bold text-[#d97706] font-display">{openCount}</div>
+            </div>
+            <div className="hidden md:block h-8 w-px bg-gray-200" />
+            <div className="flex-1 text-center md:text-left">
+              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">In Appeal</div>
+              <div className="mt-1 text-lg font-bold text-[#2563eb] font-display">{appealedCount}</div>
+            </div>
+            <div className="hidden md:block h-8 w-px bg-gray-200" />
+            <div className="flex-1 text-center md:text-left">
+              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Resolved</div>
+              <div className="mt-1 text-lg font-bold text-[#16a34a] font-display">{resolvedCount}</div>
+            </div>
+            <div className="hidden md:block h-8 w-px bg-gray-200" />
+            <div className="flex-1 text-center md:text-left">
+              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Total Recovered</div>
+              <div className="mt-1 text-lg font-bold text-[#16a34a] font-display">{formatCurrency(totalRecovered)}</div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Claims Count</div>
-            <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#0a1628] font-display">{totalClaims}</div>
-          </div>
-          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Denial Rate</div>
-            <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#0a1628] font-display">{denialRate.toFixed(1)}%</div>
-          </div>
-          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recoverable Opportunities</div>
-            <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#16a34a] font-display">{recoverableOpportunities}</div>
-          </div>
-          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Recovered</div>
-            <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#16a34a] font-display">
-              {formatCurrency(totalRecovered)}
-            </div>
-            <div className="text-[10px] text-gray-400 font-semibold mt-1">From appealed claims</div>
-          </div>
-        </div>
-
-        {/* Appeal Analytics Section */}
-        {appealAnalytics?.hasAppeals && (
-          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm space-y-6">
-            <div>
-              <h2 className="text-[18px] font-bold text-[#0a1628] font-display">Appeal Analytics</h2>
-              <p className="text-xs text-gray-500 mt-1">Based on submitted appeals</p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
-              {/* Card 1 — Appeal Success Rate */}
-              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Appeal Success Rate</div>
-                <div 
-                  className="mt-2 text-2xl md:text-3xl font-extrabold font-display"
-                  style={{ color: appealAnalytics.successRate >= 50 ? '#16a34a' : '#dc2626' }}
-                >
-                  {appealAnalytics.successRate.toFixed(1)}%
-                </div>
-                <div className="text-[10px] text-gray-400 font-semibold mt-1">
-                  {appealAnalytics.successfulAppeals} of {appealAnalytics.totalAppeals} appeals successful
-                </div>
-              </div>
-
-              {/* Card 2 — Avg Days to Resolution */}
-              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Days to Resolution</div>
-                <div 
-                  className="mt-2 text-2xl md:text-3xl font-extrabold font-display"
-                  style={{ 
-                    color: !appealAnalytics.hasAvgDays 
-                      ? '#0a1628' 
-                      : appealAnalytics.avgDays <= 30 
-                        ? '#16a34a' 
-                        : appealAnalytics.avgDays <= 60 
-                          ? '#d97706' 
-                          : '#dc2626' 
-                  }}
-                >
-                  {appealAnalytics.hasAvgDays ? `${appealAnalytics.avgDays} days` : 'N/A'}
-                </div>
-                <div className="text-[10px] text-gray-400 font-semibold mt-1">From appeal to resolution</div>
-              </div>
-
-              {/* Card 3 — Total Recovered */}
-              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Recovered</div>
-                <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#16a34a] font-display">
-                  {formatCurrency(appealAnalytics.totalRecoveredVal)}
-                </div>
-                <div className="text-[10px] text-gray-400 font-semibold mt-1">From appealed claims</div>
-              </div>
-
-              {/* Card 4 — Pre vs Post Appeal */}
-              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pre vs Post Appeal</div>
-                <div className="mt-2 flex flex-col text-sm font-semibold text-[#0a1628] leading-tight">
-                  <span>Before: {formatCurrency(appealAnalytics.preSum)}</span>
-                  <span>After: {formatCurrency(appealAnalytics.postSum)}</span>
-                </div>
-                <div className="text-[10px] text-gray-400 font-semibold mt-1">Denied amount vs recovered</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Denial Upload / History Tabs */}
-        <div className="bg-white border-b border-gray-200 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
-          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-            <button
-              onClick={() => setDenialSubTab('upload')}
-              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
-                denialSubTab === 'upload'
-                  ? 'border-[#0a1628] text-[#0a1628]'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-              }`}
-            >
-              Upload
-            </button>
-            <button
-              onClick={() => setDenialSubTab('previous_uploads')}
-              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
-                denialSubTab === 'previous_uploads'
-                  ? 'border-[#0a1628] text-[#0a1628]'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-              }`}
-            >
-              Previous Uploads
-            </button>
-          </nav>
-        </div>
-
-        {denialSubTab === 'upload' ? (
-          /* Upload card */
-          <div className="bg-white rounded-xl border border-[#e2e8f0] p-8 shadow-sm">
-            <h2 className="text-lg font-bold text-[#0a1628] font-display mb-4">
-              Upload Denial File
-            </h2>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileInput}
-              className="hidden" 
-              accept=".csv"
-            />
-            <div 
-              onDragEnter={handleDrag}
-              onDragOver={handleDrag}
-              onDragLeave={handleDrag}
-              onDrop={handleDrop}
-              onClick={onButtonClick}
-              className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${
-                dragActive 
-                  ? 'border-[#2563eb] bg-blue-50/50' 
-                  : 'border-gray-300 hover:border-gray-400 bg-gray-50/50'
-              }`}
-            >
-              <svg className="h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-              </svg>
-              <span className="text-sm font-bold text-gray-700">
-                Drag and drop your denials CSV here, or click to browse
-              </span>
-              <span className="text-xs text-gray-400 mt-2">
-                Supports Account, Claim_ID, Payer, Billed_Amount, Paid_Amount, CARC_Code, Product_Type...
-              </span>
-            </div>
-
-            {parsing && (
-              <div className="mt-4 flex items-center justify-center space-x-2 text-sm text-gray-500 font-semibold">
-                <div className="w-4 h-4 border-2 border-t-transparent border-[#2563eb] rounded-full animate-spin"></div>
-                <span>Processing and resolving rules codes...</span>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Previous Uploads Table */
-          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm overflow-hidden">
-            <h2 className="text-lg font-bold text-[#0a1628] font-display mb-4">
-              Previous Uploads
-            </h2>
-            {batches.length === 0 ? (
-              <div className="text-sm text-gray-500 py-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                No uploads yet
-              </div>
-            ) : (
-              <div className="overflow-x-auto -mx-6 -mb-6">
-                <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
-                  <thead>
-                    <tr className="text-gray-500 font-semibold text-xs uppercase tracking-wider bg-gray-50">
-                      <th className="px-6 py-3">Name</th>
-                      <th className="px-6 py-3">Status</th>
-                      <th className="px-6 py-3 text-right">Total Claims</th>
-                      <th className="px-6 py-3 text-right">Denied Dollars</th>
-                      <th className="px-6 py-3 text-right">Recoverable</th>
-                      <th className="px-6 py-3">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
-                    {batches.map(batch => (
-                      <tr key={batch.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 font-semibold text-[#0a1628]">{batch.name}</td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold ${
-                            batch.status === 'completed'
-                              ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20'
-                              : batch.status === 'processing'
-                              ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20'
-                              : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20'
-                          }`}>
-                            {batch.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right text-gray-600">{batch.total_claims}</td>
-                        <td className="px-6 py-4 text-right text-gray-900 font-medium">{formatCurrency(batch.total_denied_dollars || 0)}</td>
-                        <td className="px-6 py-4 text-right text-[#16a34a] font-semibold">{formatCurrency(batch.recoverable_amount || 0)}</td>
-                        <td className="px-6 py-4 text-gray-500">{new Date(batch.created_at).toLocaleDateString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Analytics charts section */}
-        {mounted && claims.length > 0 && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-bold text-[#0a1628] font-display">
-              Denial Analytics
-            </h2>
-            {/* 2x2 Grid Layout */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              {/* Top 5 CARCs */}
-              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
-                <h3 className="font-bold text-xs text-gray-900 mb-3">Top 5 Denial Reasons by CARC Code</h3>
-                <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={getTopCarcData()}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="code" tick={{ fontSize: 11 }} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
-                        labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                        itemStyle={{ color: '#93c5fd' }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: '11px' }} iconSize={8} />
-                      <Bar dataKey="value" name="Claims" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Top 5 Payers */}
-              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
-                <h3 className="font-bold text-xs text-gray-900 mb-3">Top 5 Payers by Denied Dollars</h3>
-                <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={getTopPayersData()} margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                      <YAxis tickFormatter={(v: number) => formatCurrency(v)} tick={{ fontSize: 11 }} />
-                      <Tooltip
-                        formatter={(v: unknown) => formatCurrency(Number(v))}
-                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
-                        labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                        itemStyle={{ color: '#93c5fd' }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: '11px' }} iconSize={8} />
-                      <Bar dataKey="value" name="Denied Amount" fill="#0a1628" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Category Pie */}
-              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
-                <h3 className="font-bold text-xs text-gray-900 mb-3">Denial Categories Breakdown</h3>
-                <div className="h-[220px] flex items-center justify-center">
-                  <div className="w-[50%] h-full">
-                    <ResponsiveContainer width="100%" height={220}>
-                      <PieChart>
-                        <Pie
-                          data={getCategoryPieData()}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={45}
-                          outerRadius={70}
-                          paddingAngle={3}
-                          dataKey="value"
-                        >
-                          {getCategoryPieData().map((_entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
-                          labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                          itemStyle={{ color: '#93c5fd' }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="w-[50%] text-[10px] space-y-1.5 font-medium max-h-[200px] overflow-y-auto pr-1">
-                    {getCategoryPieData().map((entry, index) => (
-                      <div key={entry.name} className="flex items-center space-x-2">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
-                        <span className="text-gray-600 truncate">{entry.name}</span>
-                        <span className="text-gray-900 font-bold ml-auto">{entry.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Product breakdown */}
-              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
-                <h3 className="font-bold text-xs text-gray-900 mb-3">Product Type Breakdown</h3>
-                <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={getProductTypeData()}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
-                        labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                        itemStyle={{ color: '#93c5fd' }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: '11px' }} iconSize={8} />
-                      <Bar dataKey="value" name="Claims" fill="#16a34a" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        )}
-
         {/* Work Queue section */}
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
@@ -1533,6 +1269,318 @@ export function DenialsClient({ clientId, userEmail, initialClaims, appealAnalyt
           </div>
         </div>
 
+        </div>
+
+        {"/* TAB 2: ANALYTICS */"}
+        <div style={{ display: activeTopTab === 'analytics' ? 'block' : 'none' }} className="space-y-10">
+        {/* Appeal Analytics Section */}
+        {appealAnalytics?.hasAppeals && (
+          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm space-y-6">
+            <div>
+              <h2 className="text-[18px] font-bold text-[#0a1628] font-display">Appeal Analytics</h2>
+              <p className="text-xs text-gray-500 mt-1">Based on submitted appeals</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
+              {/* Card 1 — Appeal Success Rate */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Appeal Success Rate</div>
+                <div 
+                  className="mt-2 text-2xl md:text-3xl font-extrabold font-display"
+                  style={{ color: appealAnalytics.successRate >= 50 ? '#16a34a' : '#dc2626' }}
+                >
+                  {appealAnalytics.successRate.toFixed(1)}%
+                </div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-1">
+                  {appealAnalytics.successfulAppeals} of {appealAnalytics.totalAppeals} appeals successful
+                </div>
+              </div>
+
+              {/* Card 2 — Avg Days to Resolution */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Days to Resolution</div>
+                <div 
+                  className="mt-2 text-2xl md:text-3xl font-extrabold font-display"
+                  style={{ 
+                    color: !appealAnalytics.hasAvgDays 
+                      ? '#0a1628' 
+                      : appealAnalytics.avgDays <= 30 
+                        ? '#16a34a' 
+                        : appealAnalytics.avgDays <= 60 
+                          ? '#d97706' 
+                          : '#dc2626' 
+                  }}
+                >
+                  {appealAnalytics.hasAvgDays ? `${appealAnalytics.avgDays} days` : 'N/A'}
+                </div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-1">From appeal to resolution</div>
+              </div>
+
+              {/* Card 3 — Total Recovered */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Recovered</div>
+                <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#16a34a] font-display">
+                  {formatCurrency(appealAnalytics.totalRecoveredVal)}
+                </div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-1">From appealed claims</div>
+              </div>
+
+              {/* Card 4 — Pre vs Post Appeal */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pre vs Post Appeal</div>
+                <div className="mt-2 flex flex-col text-sm font-semibold text-[#0a1628] leading-tight">
+                  <span>Before: {formatCurrency(appealAnalytics.preSum)}</span>
+                  <span>After: {formatCurrency(appealAnalytics.postSum)}</span>
+                </div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-1">Denied amount vs recovered</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+
+        {/* Analytics charts section */}
+        {mounted && claims.length > 0 && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-[#0a1628] font-display">
+              Denial Analytics
+            </h2>
+            {/* 2x2 Grid Layout */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Top 5 CARCs */}
+              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
+                <h3 className="font-bold text-xs text-gray-900 mb-3">Top 5 Denial Reasons by CARC Code</h3>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={getTopCarcData()}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="code" tick={{ fontSize: 11 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
+                        labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                        itemStyle={{ color: '#93c5fd' }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px' }} iconSize={8} />
+                      <Bar dataKey="value" name="Claims" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Top 5 Payers */}
+              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
+                <h3 className="font-bold text-xs text-gray-900 mb-3">Top 5 Payers by Denied Dollars</h3>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={getTopPayersData()} margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v: number) => formatCurrency(v)} tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        formatter={(v: unknown) => formatCurrency(Number(v))}
+                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
+                        labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                        itemStyle={{ color: '#93c5fd' }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px' }} iconSize={8} />
+                      <Bar dataKey="value" name="Denied Amount" fill="#0a1628" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Category Pie */}
+              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
+                <h3 className="font-bold text-xs text-gray-900 mb-3">Denial Categories Breakdown</h3>
+                <div className="h-[220px] flex items-center justify-center">
+                  <div className="w-[50%] h-full">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie
+                          data={getCategoryPieData()}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={45}
+                          outerRadius={70}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {getCategoryPieData().map((_entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
+                          labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                          itemStyle={{ color: '#93c5fd' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="w-[50%] text-[10px] space-y-1.5 font-medium max-h-[200px] overflow-y-auto pr-1">
+                    {getCategoryPieData().map((entry, index) => (
+                      <div key={entry.name} className="flex items-center space-x-2">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
+                        <span className="text-gray-600 truncate">{entry.name}</span>
+                        <span className="text-gray-900 font-bold ml-auto">{entry.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Product breakdown */}
+              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm">
+                <h3 className="font-bold text-xs text-gray-900 mb-3">Product Type Breakdown</h3>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={getProductTypeData()}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#0a1628', border: 'none', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
+                        labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                        itemStyle={{ color: '#93c5fd' }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px' }} iconSize={8} />
+                      <Bar dataKey="value" name="Claims" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        </div>
+
+        {"/* TAB 3: UPLOAD */"}
+        <div style={{ display: activeTopTab === 'upload' ? 'block' : 'none' }} className="space-y-10">
+        {/* Denial Upload / History Tabs */}
+        <div className="bg-white border-b border-gray-200 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+            <button
+              onClick={() => setDenialSubTab('upload')}
+              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+                denialSubTab === 'upload'
+                  ? 'border-[#0a1628] text-[#0a1628]'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              Upload
+            </button>
+            <button
+              onClick={() => setDenialSubTab('previous_uploads')}
+              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+                denialSubTab === 'previous_uploads'
+                  ? 'border-[#0a1628] text-[#0a1628]'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              Previous Uploads
+            </button>
+          </nav>
+        </div>
+
+        {denialSubTab === 'upload' ? (
+          /* Upload card */
+          <div className="bg-white rounded-xl border border-[#e2e8f0] p-8 shadow-sm">
+            <h2 className="text-lg font-bold text-[#0a1628] font-display mb-4">
+              Upload Denial File
+            </h2>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileInput}
+              className="hidden" 
+              accept=".csv"
+            />
+            <div 
+              onDragEnter={handleDrag}
+              onDragOver={handleDrag}
+              onDragLeave={handleDrag}
+              onDrop={handleDrop}
+              onClick={onButtonClick}
+              className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${
+                dragActive 
+                  ? 'border-[#2563eb] bg-blue-50/50' 
+                  : 'border-gray-300 hover:border-gray-400 bg-gray-50/50'
+              }`}
+            >
+              <svg className="h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+              </svg>
+              <span className="text-sm font-bold text-gray-700">
+                Drag and drop your denials CSV here, or click to browse
+              </span>
+              <span className="text-xs text-gray-400 mt-2">
+                Supports Account, Claim_ID, Payer, Billed_Amount, Paid_Amount, CARC_Code, Product_Type...
+              </span>
+            </div>
+
+            {parsing && (
+              <div className="mt-4 flex items-center justify-center space-x-2 text-sm text-gray-500 font-semibold">
+                <div className="w-4 h-4 border-2 border-t-transparent border-[#2563eb] rounded-full animate-spin"></div>
+                <span>Processing and resolving rules codes...</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Previous Uploads Table */
+          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm overflow-hidden">
+            <h2 className="text-lg font-bold text-[#0a1628] font-display mb-4">
+              Previous Uploads
+            </h2>
+            {batches.length === 0 ? (
+              <div className="text-sm text-gray-500 py-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                No uploads yet
+              </div>
+            ) : (
+              <div className="overflow-x-auto -mx-6 -mb-6">
+                <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+                  <thead>
+                    <tr className="text-gray-500 font-semibold text-xs uppercase tracking-wider bg-gray-50">
+                      <th className="px-6 py-3">Name</th>
+                      <th className="px-6 py-3">Status</th>
+                      <th className="px-6 py-3 text-right">Total Claims</th>
+                      <th className="px-6 py-3 text-right">Denied Dollars</th>
+                      <th className="px-6 py-3 text-right">Recoverable</th>
+                      <th className="px-6 py-3">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {batches.map(batch => (
+                      <tr key={batch.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-[#0a1628]">{batch.name}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold ${
+                            batch.status === 'completed'
+                              ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20'
+                              : batch.status === 'processing'
+                              ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20'
+                              : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20'
+                          }`}>
+                            {batch.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right text-gray-600">{batch.total_claims}</td>
+                        <td className="px-6 py-4 text-right text-gray-900 font-medium">{formatCurrency(batch.total_denied_dollars || 0)}</td>
+                        <td className="px-6 py-4 text-right text-[#16a34a] font-semibold">{formatCurrency(batch.recoverable_amount || 0)}</td>
+                        <td className="px-6 py-4 text-gray-500">{new Date(batch.created_at).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        </div>
       </main>
 
       {/* Appeal Modal */}
