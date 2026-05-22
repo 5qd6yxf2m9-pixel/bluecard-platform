@@ -270,6 +270,19 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
     setInlineSuccess(null)
     setInlineError(null)
 
+    // Validate Effective Start Date & Effective End Date
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+    if (editStartDate && !dateRegex.test(editStartDate)) {
+      setInlineError('Invalid date format. Use YYYY-MM-DD')
+      setSavingPrefix(null)
+      return
+    }
+    if (editEndDate && !dateRegex.test(editEndDate)) {
+      setInlineError('Invalid date format. Use YYYY-MM-DD')
+      setSavingPrefix(null)
+      return
+    }
+
     try {
       const { error: updateErr } = await supabase
         .from('alpha_prefix_reference')
@@ -280,6 +293,9 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
           effective_end_date: editEndDate || null
         })
         .eq('prefix', p.prefix)
+
+      console.log('Saving prefix:', p.prefix, 'with values:', { editStatus, editContracted, editStartDate, editEndDate })
+      console.log('Update result:', updateErr)
 
       if (updateErr) throw new Error(updateErr.message)
 
@@ -504,7 +520,8 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
                                 <div>
                                   <label className="block text-xs font-semibold text-gray-600 uppercase">Effective Start Date</label>
                                   <input
-                                    type="date"
+                                    type="text"
+                                    placeholder="YYYY-MM-DD"
                                     value={editStartDate}
                                     onChange={e => setEditStartDate(e.target.value)}
                                     className="mt-1 block w-full focus:border-indigo-500 focus:ring-indigo-500"
@@ -514,17 +531,19 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
                                       borderColor: '#e2e8f0',
                                       borderWidth: '1px',
                                       borderStyle: 'solid',
-                                      padding: '8px 12px',
+                                      padding: '10px 14px',
                                       fontSize: '14px',
-                                      borderRadius: '6px'
+                                      borderRadius: '8px'
                                     }}
                                   />
+                                  <p className="mt-1 text-[10px] text-gray-400">Format: YYYY-MM-DD (e.g. 2026-01-01)</p>
                                 </div>
 
                                 <div>
                                   <label className="block text-xs font-semibold text-gray-600 uppercase">Effective End Date</label>
                                   <input
-                                    type="date"
+                                    type="text"
+                                    placeholder="YYYY-MM-DD"
                                     value={editEndDate}
                                     onChange={e => setEditEndDate(e.target.value)}
                                     className="mt-1 block w-full focus:border-indigo-500 focus:ring-indigo-500"
@@ -534,11 +553,12 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
                                       borderColor: '#e2e8f0',
                                       borderWidth: '1px',
                                       borderStyle: 'solid',
-                                      padding: '8px 12px',
+                                      padding: '10px 14px',
                                       fontSize: '14px',
-                                      borderRadius: '6px'
+                                      borderRadius: '8px'
                                     }}
                                   />
+                                  <p className="mt-1 text-[10px] text-gray-400">Format: YYYY-MM-DD (e.g. 2026-01-01)</p>
                                 </div>
                               </div>
 
