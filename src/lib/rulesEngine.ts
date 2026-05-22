@@ -249,6 +249,10 @@ export async function processClain(
     eligibilityScore -= 15
   }
 
+  if (prefixData && prefixData.license_status === 'licensed' && prefixData.contracted_provider === true) {
+    eligibilityScore += 5
+  }
+
   eligibilityScore = Math.min(30, eligibilityScore)
 
   // 2. DOS/CONTRACT CONFIDENCE (max 25 points)
@@ -310,6 +314,9 @@ export async function processClain(
 
   // Determine standard reason parts
   const reasonParts: string[] = []
+  if (prefixData && prefixData.license_status === 'licensed' && prefixData.contracted_provider === true) {
+    reasonParts.push('Provider contracted and licensed for this prefix')
+  }
 
   // Assign decision
   let decision: 'approved' | 'manual_review' = 'approved'

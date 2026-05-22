@@ -195,6 +195,10 @@ function processClaim(
     eligibilityScore -= 15
   }
 
+  if (prefixData && prefixData.license_status === 'licensed' && prefixData.contracted_provider === true) {
+    eligibilityScore += 5
+  }
+
   eligibilityScore = Math.min(30, eligibilityScore)
 
   // DOS/Contract score
@@ -252,6 +256,9 @@ function processClaim(
   totalScore = Math.max(0, Math.min(100, totalScore))
 
   const reasonParts: string[] = []
+  if (prefixData && prefixData.license_status === 'licensed' && prefixData.contracted_provider === true) {
+    reasonParts.push('Provider contracted and licensed for this prefix')
+  }
   let decision: 'approved' | 'manual_review' = 'approved'
   let manualReviewCode: string | undefined = undefined
 
