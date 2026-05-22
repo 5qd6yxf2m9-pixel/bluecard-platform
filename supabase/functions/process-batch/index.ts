@@ -471,8 +471,7 @@ serve(async (req) => {
         blueshield_expected: decisionResult.blueshield_expected || null,
         confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
         financial_tier: decisionResult.financial_tier || null,
-        manual_review_code: decisionResult.manual_review_code || null,
-        rate_basis: decisionResult.rate_basis || null
+        manual_review_code: decisionResult.manual_review_code || null
       })
 
       processedClaimIds.push(claim.id)

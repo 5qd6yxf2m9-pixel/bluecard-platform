@@ -15,7 +15,6 @@ interface RoutingDecisionInsert {
   confidence_score: number | null
   financial_tier: string | null
   manual_review_code: string | null
-  rate_basis: string | null
 }
 
 export async function POST(request: NextRequest) {
@@ -321,8 +320,7 @@ export async function POST(request: NextRequest) {
         blueshield_expected: decisionResult.blueshield_expected || null,
         confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
         financial_tier: (decisionResult.financial_tier as string | undefined) || null,
-        manual_review_code: (decisionResult.manual_review_code as string | undefined) || null,
-        rate_basis: decisionResult.rate_basis || null
+        manual_review_code: (decisionResult.manual_review_code as string | undefined) || null
       })
 
       processedClaimIds.push(claim.id)
