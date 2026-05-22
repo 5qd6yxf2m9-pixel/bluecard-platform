@@ -360,10 +360,10 @@ export function DashboardClient({
             status: 'pending',
             cpt_code: row.cpt_code || null,
             rev_code: row.rev_code || null,
-            auth_status: row.auth_status || null,
-            auth_payer: row.auth_payer || null,
-            auth_dos_start: parseDateToISO(row.auth_dos_start),
-            auth_dos_end: parseDateToISO(row.auth_dos_end)
+            auth_status: row.auth_status || row.Auth_Status || null,
+            auth_payer: row.auth_payer || row.Auth_Payer || null,
+            auth_dos_start: parseDateToISO(row.auth_dos_start || row.Auth_Dos_Start),
+            auth_dos_end: parseDateToISO(row.auth_dos_end || row.Auth_Dos_End)
           }
         })
 

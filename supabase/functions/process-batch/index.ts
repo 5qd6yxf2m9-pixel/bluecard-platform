@@ -354,17 +354,16 @@ function processClaim(
 
   let customReason: string | undefined = undefined
 
-  if (claim.auth_status !== undefined && claim.auth_status !== null) {
+  if (claim.auth_status !== undefined && claim.auth_status !== null && decision !== 'manual_review') {
     const authStatus = claim.auth_status.trim()
     const authPayer = (claim.auth_payer || '').trim()
-
     const anthemExp = anthemExpected !== null ? anthemExpected : 0
     const bsExp = blueshieldExpected !== null ? blueshieldExpected : 0
     const higherPlan = anthemExp >= bsExp ? 'Anthem' : 'Blue Shield'
     const lowerPlan = anthemExp >= bsExp ? 'Blue Shield' : 'Anthem'
 
     if (authStatus === 'valid' && (authPayer === higherPlan || authPayer === 'Both')) {
-      reasonParts.push("Auth validated for recommended payer.")
+      reasonParts.push('Auth validated for recommended payer.')
     } else if (authStatus === 'valid' && authPayer === lowerPlan) {
       decision = 'manual_review'
       manualReviewCode = 'MR-006'
@@ -372,25 +371,25 @@ function processClaim(
     } else if (authStatus === 'missing') {
       decision = 'manual_review'
       manualReviewCode = 'MR-006'
-      customReason = "Authorization required but not found. Claim held pending auth verification."
+      customReason = 'Authorization required but not found. Claim held pending auth verification.'
     } else if (authStatus === 'not_required') {
-      reasonParts.push("No auth required for this product/service.")
+      reasonParts.push('No auth required for this product/service.')
     } else if (authStatus === 'payer_mismatch') {
       decision = 'manual_review'
       manualReviewCode = 'MR-006'
-      customReason = "Auth payer does not match recommended routing payer. Manual review required."
+      customReason = 'Auth payer does not match recommended routing payer. Manual review required.'
     } else if (authStatus === 'dos_mismatch') {
       decision = 'manual_review'
       manualReviewCode = 'MR-006'
-      customReason = "Authorization does not cover the date of service. DOS mismatch flagged."
+      customReason = 'Authorization does not cover the date of service. DOS mismatch flagged.'
     } else if (authStatus === 'service_mismatch') {
       decision = 'manual_review'
       manualReviewCode = 'MR-006'
-      customReason = "Authorization does not match the billed service type. Service mismatch flagged."
+      customReason = 'Authorization does not match the billed service type. Service mismatch flagged.'
     } else if (authStatus === 'provider_mismatch') {
       decision = 'manual_review'
       manualReviewCode = 'MR-006'
-      customReason = "Authorization is tied to a different facility or provider. Entity mismatch flagged."
+      customReason = 'Authorization is tied to a different facility or provider. Entity mismatch flagged.'
     }
   }
 
