@@ -32,6 +32,47 @@ interface AuthConflictClaim {
   auth_payer?: string | null;
 }
 
+interface ModalClaimData {
+  id: string;
+  patient_id: string;
+  alpha_prefix: string;
+  dos: string;
+  product_type: string;
+  payer_name: string;
+  charge_amount: number;
+  cpt_code?: string | null;
+  rev_code?: string | null;
+  auth_status?: string | null;
+  auth_payer?: string | null;
+  auth_dos_start?: string | null;
+  auth_dos_end?: string | null;
+}
+
+interface ModalDecisionData {
+  id: string;
+  decision: string;
+  reason: string;
+  recommended_plan: string | null;
+  alternate_plan: string | null;
+  uplift_amount: number | null;
+  anthem_expected: number | null;
+  blueshield_expected: number | null;
+  confidence_score: number | null;
+  financial_tier?: string | null;
+  manual_review_code?: string | null;
+}
+
+interface ModalPrefixData {
+  plan_name: string;
+  state: string;
+  is_active: boolean;
+  program: string;
+  license_status: string;
+  contracted_provider: boolean;
+  effective_start_date?: string | null;
+  effective_end_date?: string | null;
+}
+
 export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) {
   const [tab, setTab] = useState<'routing_decisions' | 'manual_review' | 'duplicates'>('routing_decisions')
   const [searchInput, setSearchInput] = useState('')
@@ -44,6 +85,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
   const [batchName, setBatchName] = useState(batch.name)
   const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null)
   const [authConflictClaims, setAuthConflictClaims] = useState<AuthConflictClaim[]>([])
+  const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null)
 
   const handleSaveBatchName = async () => {
     if (!batchName.trim()) return
@@ -415,9 +457,6 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val)
 
-  const toggleExpand = (claimId: string) => {
-    setExpandedClaimId(expandedClaimId === claimId ? null : claimId)
-  }
 
   const getReasonLines = (reason: string) => {
     if (!reason) return []
@@ -833,10 +872,10 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                                   </td>
                                   <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                                     <button
-                                      onClick={() => toggleExpand(claim.id)}
+                                      onClick={() => setSelectedClaimId(claim.id)}
                                       className="inline-flex items-center justify-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
                                     >
-                                      {isExpanded ? 'Hide' : 'Details'}
+                                      Details
                                     </button>
                                   </td>
                                 </tr>
@@ -930,10 +969,10 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                                   </td>
                                   <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                                     <button
-                                      onClick={() => toggleExpand(claim.id)}
+                                      onClick={() => setSelectedClaimId(claim.id)}
                                       className="inline-flex items-center justify-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
                                     >
-                                      {isExpanded ? 'Hide' : 'Details'}
+                                      Details
                                     </button>
                                   </td>
                                 </tr>
@@ -1015,10 +1054,10 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                                   </td>
                                   <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                                     <button
-                                      onClick={() => toggleExpand(claim.id)}
+                                      onClick={() => setSelectedClaimId(claim.id)}
                                       className="inline-flex items-center justify-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
                                     >
-                                      {isExpanded ? 'Hide' : 'Details'}
+                                      Details
                                     </button>
                                   </td>
                                 </tr>
@@ -1304,10 +1343,10 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                           </td>
                           <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                             <button
-                              onClick={() => toggleExpand(claim.id)}
+                              onClick={() => setSelectedClaimId(claim.id)}
                               className="inline-flex items-center justify-center rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
                             >
-                              {isExpanded ? 'Hide' : 'Details'}
+                              Details
                             </button>
                           </td>
                         </tr>
@@ -1397,6 +1436,542 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
         </div>
 
       </main>
+
+      {selectedClaimId !== null && (
+        <ClaimDrilldownDrawer
+          claimId={selectedClaimId}
+          batchId={batch.id}
+          isOpen={selectedClaimId !== null}
+          onClose={() => setSelectedClaimId(null)}
+          onActionTriggered={async () => {
+            await fetchClaims()
+            await fetchStats()
+            await fetchAuthConflictClaims()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+interface ClaimDrilldownDrawerProps {
+  claimId: string;
+  batchId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onActionTriggered: () => void;
+}
+
+function ClaimDrilldownDrawer({
+  claimId,
+  isOpen,
+  onClose,
+  onActionTriggered
+}: ClaimDrilldownDrawerProps) {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(true)
+  const [claimData, setClaimData] = useState<ModalClaimData | null>(null)
+  const [decisionData, setDecisionData] = useState<ModalDecisionData | null>(null)
+  const [prefixData, setPrefixData] = useState<ModalPrefixData | null>(null)
+
+  useEffect(() => {
+    if (!isOpen || !claimId) return
+
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        const { data: claim, error: claimErr } = await supabase
+          .from('claims')
+          .select('id, patient_id, alpha_prefix, dos, product_type, payer_name, charge_amount, cpt_code, rev_code, auth_status, auth_payer, auth_dos_start, auth_dos_end')
+          .eq('id', claimId)
+          .single()
+
+        if (claimErr) throw claimErr
+
+        const { data: decision } = await supabase
+          .from('routing_decisions')
+          .select('id, decision, reason, recommended_plan, alternate_plan, uplift_amount, anthem_expected, blueshield_expected, confidence_score, financial_tier, manual_review_code')
+          .eq('claim_id', claimId)
+          .maybeSingle()
+
+        setClaimData(claim as ModalClaimData)
+        setDecisionData(decision as ModalDecisionData)
+
+        if (claim.alpha_prefix) {
+          const { data: prefix } = await supabase
+            .from('alpha_prefix_reference')
+            .select('plan_name, state, is_active, program, license_status, contracted_provider, effective_start_date, effective_end_date')
+            .eq('alpha_prefix', claim.alpha_prefix)
+            .maybeSingle()
+
+          setPrefixData(prefix as ModalPrefixData)
+        } else {
+          setPrefixData(null)
+        }
+      } catch { }
+      finally {
+        setLoading(false)
+      }
+    }
+
+    void fetchData()
+  }, [claimId, isOpen, supabase])
+
+  if (!isOpen) return null
+
+  const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val)
+
+  const formatAuthStatus = (status: string | null | undefined) => {
+    if (!status) return '—'
+    return status
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
+  }
+
+  const extractRateBasis = (reason: string | null | undefined) => {
+    if (!reason) return 'Product Type'
+    const parts = reason.split('|')
+    const basisPart = parts.find(p => p.toLowerCase().includes('rate basis:'))
+    if (basisPart) {
+      return basisPart.replace(/rate basis:\s*/i, '').trim()
+    }
+    return 'Product Type'
+  }
+
+  const handleApproveRoute = async () => {
+    if (!claimId) return
+    try {
+      const { error: claimErr } = await supabase
+        .from('claims')
+        .update({ status: 'approved' })
+        .eq('id', claimId)
+      if (claimErr) throw claimErr
+
+      await supabase
+        .from('routing_decisions')
+        .update({ decision: 'approved' })
+        .eq('claim_id', claimId)
+
+      onActionTriggered()
+      onClose()
+    } catch {
+      alert('Failed to approve route.')
+    }
+  }
+
+  const handleSendToManual = async () => {
+    if (!claimId) return
+    try {
+      const { error: rdErr } = await supabase
+        .from('routing_decisions')
+        .update({ decision: 'manual_review', manual_review_code: 'MR-006' })
+        .eq('claim_id', claimId)
+      if (rdErr) throw rdErr
+
+      onActionTriggered()
+      onClose()
+    } catch {
+      alert('Failed to send to manual review.')
+    }
+  }
+
+  const handleExportToEpic = () => {
+    if (!claimData || !decisionData) return
+    
+    const headers = [
+      'Patient ID', 'Prefix', 'DOS', 'Product Type', 'Payer Name', 'Charge Amount',
+      'CPT Code', 'Rev Code', 'Auth Status', 'Auth Payer', 'Auth DOS Start', 'Auth DOS End',
+      'Decision', 'Reason', 'Recommended Plan', 'Alternate Plan', 'Uplift Amount',
+      'Anthem Expected', 'Blue Shield Expected', 'Confidence Score', 'Financial Tier', 'Manual Review Code'
+    ]
+    
+    const values = [
+      claimData.patient_id, claimData.alpha_prefix, claimData.dos, claimData.product_type, claimData.payer_name, claimData.charge_amount,
+      claimData.cpt_code || '', claimData.rev_code || '', claimData.auth_status || '', claimData.auth_payer || '', claimData.auth_dos_start || '', claimData.auth_dos_end || '',
+      decisionData.decision, decisionData.reason, decisionData.recommended_plan || '', decisionData.alternate_plan || '', decisionData.uplift_amount || 0,
+      decisionData.anthem_expected || 0, decisionData.blueshield_expected || 0, decisionData.confidence_score || 0, decisionData.financial_tier || '', decisionData.manual_review_code || ''
+    ]
+    
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(','), values.map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')].join('\n')
+    
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement("a")
+    link.setAttribute("href", encodedUri)
+    link.setAttribute("download", `epic_export_claim_${claimId}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const getReasonLines = (reason: string) => {
+    if (!reason) return []
+    return reason.split('|').map(line => line.trim()).filter(Boolean)
+  }
+
+  const anthemRec = decisionData?.recommended_plan === 'Anthem'
+  const bsRec = decisionData?.recommended_plan === 'Blue Shield'
+  const anthemUplift = anthemRec ? decisionData?.uplift_amount : null
+  const bsUplift = bsRec ? decisionData?.uplift_amount : null
+
+  const score = decisionData?.confidence_score || 0
+  let barColor = 'bg-red-500'
+  let tierName = 'Unsafe'
+
+  if (score >= 95) {
+    barColor = 'bg-green-600'
+    tierName = 'Extremely High'
+  } else if (score >= 85) {
+    barColor = 'bg-green-500'
+    tierName = 'High'
+  } else if (score >= 70) {
+    barColor = 'bg-yellow-500'
+    tierName = 'Moderate'
+  } else if (score >= 50) {
+    barColor = 'bg-orange-500'
+    tierName = 'Uncertain'
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Dark backdrop overlay */}
+        <div 
+          onClick={onClose}
+          className="absolute inset-0 bg-slate-900/50 transition-opacity duration-300 ease-in-out" 
+          aria-hidden="true"
+        ></div>
+
+        <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
+          <div className="pointer-events-auto w-screen max-w-2xl transform transition-transform duration-300 ease-in-out">
+            <div className="flex h-full flex-col overflow-y-scroll bg-white shadow-2xl border-l border-[#e2e8f0]">
+              
+              {loading ? (
+                <div className="flex flex-1 items-center justify-center p-6 bg-white">
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#0a1628]"></div>
+                    <p className="text-sm font-medium text-gray-500 font-sans">Loading claim details...</p>
+                  </div>
+                </div>
+              ) : !claimData ? (
+                <div className="flex flex-1 items-center justify-center p-6 bg-white">
+                  <p className="text-sm font-medium text-red-500 font-sans">Claim details could not be loaded.</p>
+                </div>
+              ) : (
+                <>
+                  {/* SECTION 1 — HEADER SUMMARY */}
+                  <div className="bg-[#0a1628] text-white px-6 py-5 flex items-center justify-between border-b border-gray-800 sticky top-0 z-10">
+                    <div>
+                      <h2 className="text-xl font-bold font-display tracking-tight">Patient: {claimData.patient_id}</h2>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {/* Recommended Route Badge */}
+                        {decisionData?.decision === 'approved' ? (
+                          <span className="inline-flex items-center rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-semibold text-green-400 ring-1 ring-inset ring-green-500/20">
+                            Approved Route
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-400 ring-1 ring-inset ring-amber-500/20">
+                            Manual Review
+                          </span>
+                        )}
+
+                        {/* Confidence Score Badge */}
+                        {(() => {
+                          const score = decisionData?.confidence_score
+                          if (score === null || score === undefined) {
+                            return (
+                              <span className="inline-flex items-center rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-semibold text-red-400 ring-1 ring-inset ring-red-500/20">
+                                Unsafe (0)
+                              </span>
+                            )
+                          }
+                          if (score >= 95) {
+                            return (
+                              <span className="inline-flex items-center rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-semibold text-green-400 ring-1 ring-inset ring-green-500/20">
+                                Extremely High ({score})
+                              </span>
+                            )
+                          } else if (score >= 85) {
+                            return (
+                              <span className="inline-flex items-center rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-semibold text-green-400 ring-1 ring-inset ring-green-500/20">
+                                High ({score})
+                              </span>
+                            )
+                          } else if (score >= 70) {
+                            return (
+                              <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-2.5 py-0.5 text-xs font-semibold text-yellow-400 ring-1 ring-inset ring-yellow-500/20">
+                                Moderate ({score})
+                              </span>
+                            )
+                          } else if (score >= 50) {
+                            return (
+                              <span className="inline-flex items-center rounded-full bg-orange-500/10 px-2.5 py-0.5 text-xs font-semibold text-orange-400 ring-1 ring-inset ring-orange-500/20">
+                                Uncertain ({score})
+                              </span>
+                            )
+                          } else {
+                            return (
+                              <span className="inline-flex items-center rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-semibold text-red-400 ring-1 ring-inset ring-red-500/20">
+                                Unsafe ({score})
+                              </span>
+                            )
+                          }
+                        })()}
+
+                        {/* Financial Tier Badge */}
+                        <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-400 ring-1 ring-inset ring-blue-500/20">
+                          {decisionData?.financial_tier || 'Tier 1 - Low'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-4">
+                      <div className="text-right">
+                        <div className="text-xs uppercase text-gray-400 font-semibold tracking-wider">Uplift Amount</div>
+                        <div className="text-2xl font-bold text-green-400 font-sans mt-0.5">
+                          {decisionData?.uplift_amount !== null && decisionData?.uplift_amount !== undefined
+                            ? formatCurrency(decisionData.uplift_amount)
+                            : '$0.00'}
+                        </div>
+                      </div>
+                      
+                      <button 
+                        onClick={onClose}
+                        className="rounded-md text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-white p-1 hover:bg-slate-800"
+                      >
+                        <span className="sr-only">Close panel</span>
+                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* MODAL MAIN CONTENT SCROLL AREA */}
+                  <div className="flex-1 p-6 space-y-6 bg-slate-50 font-sans">
+                    
+                    {/* SECTION 2 — PREFIX VALIDATION */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm space-y-4">
+                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">Prefix Validation</h3>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase font-semibold">Alpha Prefix</span>
+                          <p className="mt-1 font-bold text-gray-900">{claimData.alpha_prefix}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase font-semibold">Home Plan</span>
+                          <p className="mt-1 font-medium text-gray-900">{prefixData?.plan_name || '—'}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase font-semibold">State</span>
+                          <p className="mt-1 font-medium text-gray-900">{prefixData?.state || '—'}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase font-semibold">Program</span>
+                          <p className="mt-1 font-medium text-gray-900">{prefixData?.program || '—'}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase font-semibold">Prefix Status</span>
+                          <div className="mt-1">
+                            {prefixData?.is_active ? (
+                              <span className="inline-flex items-center rounded bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/10">Active</span>
+                            ) : (
+                              <span className="inline-flex items-center rounded bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/10">Inactive</span>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase font-semibold">License Status</span>
+                          <div className="mt-1">
+                            {(() => {
+                              const status = prefixData?.license_status || 'unknown'
+                              if (status === 'licensed') {
+                                return <span className="inline-flex items-center rounded bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/10">Licensed</span>
+                              } else if (status === 'unlicensed') {
+                                return <span className="inline-flex items-center rounded bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/10">Unlicensed</span>
+                              } else {
+                                return <span className="inline-flex items-center rounded bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-700 ring-1 ring-inset ring-gray-600/10">Unknown</span>
+                              }
+                            })()}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase font-semibold">Contracted Provider</span>
+                          <div className="mt-1">
+                            {prefixData?.contracted_provider ? (
+                              <span className="inline-flex items-center rounded bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/10">Yes</span>
+                            ) : (
+                              <span className="inline-flex items-center rounded bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/10">No</span>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase font-semibold">Effective Dates</span>
+                          <p className="mt-1 font-medium text-gray-900">
+                            {prefixData?.effective_start_date && prefixData?.effective_end_date
+                              ? `${prefixData.effective_start_date} to ${prefixData.effective_end_date}`
+                              : 'Not set'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SECTION 3 — AUTHORIZATION */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm space-y-4">
+                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">Authorization</h3>
+                      {claimData.auth_status ? (
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-xs text-gray-500 uppercase font-semibold">Auth Status</span>
+                            <div className="mt-1">
+                              {(() => {
+                                const status = claimData.auth_status || ''
+                                const formatted = formatAuthStatus(status)
+                                if (status === 'valid' || status === 'not_required') {
+                                  return <span className="inline-flex items-center rounded bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/10">{formatted}</span>
+                                } else if (status === 'missing') {
+                                  return <span className="inline-flex items-center rounded bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/10">{formatted}</span>
+                                } else {
+                                  return <span className="inline-flex items-center rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/10">{formatted}</span>
+                                }
+                              })()}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500 uppercase font-semibold">Auth Payer</span>
+                            <p className="mt-1 font-medium text-gray-900">{claimData.auth_payer || '—'}</p>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500 uppercase font-semibold">Auth DOS Start</span>
+                            <p className="mt-1 font-medium text-gray-900">{claimData.auth_dos_start || '—'}</p>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500 uppercase font-semibold">Auth DOS End</span>
+                            <p className="mt-1 font-medium text-gray-900">{claimData.auth_dos_end || '—'}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm font-medium text-gray-500 italic bg-gray-50 border border-gray-100 rounded px-4 py-2">
+                          No authorization data provided in upload.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* SECTION 4 — CONTRACT COMPARISON */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm space-y-4">
+                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">Contract Comparison</h3>
+                      <div className="overflow-hidden border border-gray-200 rounded-lg">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"></th>
+                              <th className={`px-4 py-2 text-center text-xs font-semibold text-gray-900 uppercase tracking-wider ${anthemRec ? 'bg-blue-50/50' : ''}`}>Anthem</th>
+                              <th className={`px-4 py-2 text-center text-xs font-semibold text-gray-900 uppercase tracking-wider ${bsRec ? 'bg-blue-50/50' : ''}`}>Blue Shield</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 bg-white text-sm">
+                            <tr>
+                              <td className="px-4 py-3 font-medium text-gray-900">Expected Reimbursement</td>
+                              <td className={`px-4 py-3 text-center text-gray-700 font-semibold ${anthemRec ? 'bg-blue-50/50' : ''}`}>
+                                {decisionData?.anthem_expected !== null && decisionData?.anthem_expected !== undefined ? formatCurrency(decisionData.anthem_expected) : '$0.00'}
+                              </td>
+                              <td className={`px-4 py-3 text-center text-gray-700 font-semibold ${bsRec ? 'bg-blue-50/50' : ''}`}>
+                                {decisionData?.blueshield_expected !== null && decisionData?.blueshield_expected !== undefined ? formatCurrency(decisionData.blueshield_expected) : '$0.00'}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 font-medium text-gray-900">Recommended</td>
+                              <td className={`px-4 py-3 text-center font-bold text-blue-600 ${anthemRec ? 'bg-blue-50/50' : ''}`}>
+                                {anthemRec ? '✓' : '—'}
+                              </td>
+                              <td className={`px-4 py-3 text-center font-bold text-blue-600 ${bsRec ? 'bg-blue-50/50' : ''}`}>
+                                {bsRec ? '✓' : '—'}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 font-medium text-gray-900">Uplift vs Alternate</td>
+                              <td className={`px-4 py-3 text-center text-green-600 font-bold ${anthemRec ? 'bg-blue-50/50' : ''}`}>
+                                {anthemUplift && anthemUplift > 0 ? formatCurrency(anthemUplift) : '—'}
+                              </td>
+                              <td className={`px-4 py-3 text-center text-green-600 font-bold ${bsRec ? 'bg-blue-50/50' : ''}`}>
+                                {bsUplift && bsUplift > 0 ? formatCurrency(bsUplift) : '—'}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-sm pt-2">
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase font-semibold">Rate Basis</span>
+                          <p className="mt-1 font-bold text-gray-900">{extractRateBasis(decisionData?.reason)}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase font-semibold">Charge Amount</span>
+                          <p className="mt-1 font-bold text-gray-900">{formatCurrency(claimData.charge_amount)}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SECTION 5 — RISK AND AUDIT */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm space-y-4">
+                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">Risk and Audit</h3>
+                      <div className="space-y-2">
+                        <span className="text-xs text-gray-500 uppercase font-semibold">Routing Analysis</span>
+                        <ul className="list-disc list-inside space-y-1.5 text-sm text-gray-700 font-medium">
+                          {getReasonLines(decisionData?.reason || '').map((line, idx) => (
+                            <li key={idx} className="leading-relaxed">{line}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="space-y-2 pt-2">
+                        <div className="flex justify-between items-center text-sm font-medium text-gray-700">
+                          <span>Confidence Score</span>
+                          <span className="font-bold text-gray-900">{score}/100 ({tierName})</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div className={`h-3 rounded-full ${barColor}`} style={{ width: `${score}%` }}></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SECTION 6 — WORKFLOW ACTIONS */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm space-y-4">
+                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">Actions</h3>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          onClick={handleApproveRoute}
+                          className="flex-1 inline-flex justify-center items-center rounded-md bg-[#0a1628] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#162a45] focus:outline-none"
+                        >
+                          Approve Route
+                        </button>
+                        
+                        <button
+                          onClick={handleSendToManual}
+                          className="flex-1 inline-flex justify-center items-center rounded-md border border-amber-300 bg-white px-4 py-2.5 text-sm font-bold text-amber-700 shadow-sm hover:bg-amber-50 focus:outline-none"
+                        >
+                          Send to Manual Review
+                        </button>
+                        
+                        <button
+                          onClick={handleExportToEpic}
+                          className="flex-1 inline-flex justify-center items-center rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none"
+                        >
+                          Export to Epic
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                </>
+              )}
+
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
