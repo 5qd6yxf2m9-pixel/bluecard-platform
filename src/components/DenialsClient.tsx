@@ -593,11 +593,6 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
     }
   }
 
-  const truncateReason = (reason: string | null | undefined): string => {
-    if (!reason) return ''
-    return reason.length > 30 ? reason.slice(0, 30) + '...' : reason
-  }
-
   const renderOutcomeBadge = (outcome: string | null | undefined) => {
     if (!outcome) return null
     const outLower = outcome.toLowerCase().trim()
