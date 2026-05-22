@@ -357,7 +357,7 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
               <label className="block text-xs font-medium text-gray-500 mb-1">License Status Filter</label>
               <select
                 value={licenseFilter}
-                onChange={e => setLicenseFilter(e.target.value as any)}
+                onChange={e => setLicenseFilter(e.target.value as 'all' | 'licensed' | 'unlicensed' | 'unknown')}
                 className="block w-40 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="all">All Licenses</option>
@@ -480,7 +480,7 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
                                   <label className="block text-xs font-semibold text-gray-600 uppercase">License Status</label>
                                   <select
                                     value={editStatus}
-                                    onChange={e => setEditStatus(e.target.value as any)}
+                                    onChange={e => setEditStatus(e.target.value as 'licensed' | 'unlicensed' | 'unknown')}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5"
                                   >
                                     <option value="unknown">Unknown</option>
