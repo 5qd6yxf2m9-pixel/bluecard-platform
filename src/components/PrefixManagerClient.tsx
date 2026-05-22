@@ -21,6 +21,7 @@ export interface AlphaPrefixReference {
 }
 
 export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: AlphaPrefixReference[] }) {
+  const [prefixes, setPrefixes] = useState<AlphaPrefixReference[]>(initialPrefixes)
   const [search, setSearch] = useState('')
   const [licenseFilter, setLicenseFilter] = useState<'all' | 'licensed' | 'unlicensed' | 'unknown'>('all')
   const [uploading, setUploading] = useState(false)
@@ -46,7 +47,7 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
   const supabase = createClient()
 
   // Filter prefixes
-  const filteredPrefixes = initialPrefixes.filter(p => {
+  const filteredPrefixes = prefixes.filter(p => {
     const matchesSearch = 
       p.prefix.toLowerCase().includes(search.toLowerCase()) || 
       (p.plan_name && p.plan_name.toLowerCase().includes(search.toLowerCase())) ||
@@ -101,6 +102,15 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
           .upsert(upsertData, { onConflict: 'prefix' })
 
         if (upsertError) throw new Error()
+
+        const { data: updatedData, error: fetchErr } = await supabase
+          .from('alpha_prefix_reference')
+          .select('*')
+          .order('prefix', { ascending: true })
+
+        if (!fetchErr && updatedData) {
+          setPrefixes(updatedData as AlphaPrefixReference[])
+        }
 
         setSuccess(`Successfully updated ${upsertData.length} prefixes.`)
         router.refresh()
@@ -223,6 +233,15 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
           }))
         }
 
+        const { data: updatedData, error: fetchErr } = await supabase
+          .from('alpha_prefix_reference')
+          .select('*')
+          .order('prefix', { ascending: true })
+
+        if (!fetchErr && updatedData) {
+          setPrefixes(updatedData as AlphaPrefixReference[])
+        }
+
         setLicenseSuccess(`${updatedCount} prefixes updated, ${skippedCount} prefixes not found and skipped.`)
         router.refresh()
       } catch {
@@ -298,6 +317,18 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
       console.log('Update result:', updateErr)
 
       if (updateErr) throw new Error(updateErr.message)
+
+      setPrefixes(prev => prev.map(item => 
+        item.prefix === editingPrefix 
+          ? { 
+              ...item, 
+              license_status: editStatus, 
+              contracted_provider: editContracted, 
+              effective_start_date: editStartDate || null, 
+              effective_end_date: editEndDate || null 
+            }
+          : item
+      ))
 
       setInlineSuccess('License details updated successfully!')
       router.refresh()
