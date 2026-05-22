@@ -830,7 +830,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims, appealAnalyt
         )}
 
 
-        {"/* TAB 1: WORK QUEUE */"}
+        {/* TAB 1: WORK QUEUE */}
         <div style={{ display: activeTopTab === 'workqueue' ? 'block' : 'none' }} className="space-y-6">
           {/* Compact Stat Bar */}
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-4 md:px-6 md:py-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1268,7 +1268,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims, appealAnalyt
 
         </div>
 
-        {"/* TAB 2: ANALYTICS */"}
+        {/* TAB 2: ANALYTICS */}
         <div style={{ display: activeTopTab === 'analytics' ? 'block' : 'none' }} className="space-y-10">
         {/* Appeal Analytics Section */}
         {appealAnalytics?.hasAppeals && (
@@ -1455,7 +1455,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims, appealAnalyt
 
         </div>
 
-        {"/* TAB 3: UPLOAD */"}
+        {/* TAB 3: UPLOAD */}
         <div style={{ display: activeTopTab === 'upload' ? 'block' : 'none' }} className="space-y-10">
         {/* Denial Upload / History Tabs */}
         <div className="bg-white border-b border-gray-200 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
