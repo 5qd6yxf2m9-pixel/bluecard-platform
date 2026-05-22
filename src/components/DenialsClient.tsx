@@ -595,7 +595,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
 
   const truncateReason = (reason: string | null | undefined): string => {
     if (!reason) return ''
-    return reason.length > 40 ? reason.slice(0, 40) + '...' : reason
+    return reason.length > 30 ? reason.slice(0, 30) + '...' : reason
   }
 
   const renderOutcomeBadge = (outcome: string | null | undefined) => {
@@ -1141,22 +1141,19 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
           {/* Table list */}
           <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-sm overflow-hidden">
             <div>
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="min-w-full divide-y divide-gray-200 table-fixed">
                 <thead className="bg-[#0a1628]/5">
                   <tr>
                     <th className="w-10 px-4 py-4"></th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Account</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Payer</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">DOS</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Aging</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Denied</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">CARC</th>
+                    <th className="w-[15%] px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Account</th>
+                    <th className="w-[10%] px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Payer</th>
+                    <th className="w-[9%] px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">DOS</th>
+                    <th className="w-[7%] px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Aging</th>
+                    <th className="w-[9%] px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Denied</th>
+                    <th className="w-[10%] px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">CARC</th>
                     
                     {activeTab === 'appealed' && (
-                      <>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Appeal Reason</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Appeal Date</th>
-                      </>
+                      <th className="w-[25%] px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Appeal Reason</th>
                     )}
 
                     {activeTab === 'resolved' && (
@@ -1167,16 +1164,15 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                       </>
                     )}
 
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                     {activeTab !== 'resolved' && (
-                      <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="w-[15%] px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                     )}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedClaims.length === 0 ? (
                     <tr>
-                      <td colSpan={activeTab === 'open' || activeTab === 'dismissed' ? 9 : 11} className="px-6 py-12 text-center text-sm text-gray-500 font-semibold">
+                      <td colSpan={activeTab === 'open' || activeTab === 'dismissed' ? 8 : (activeTab === 'appealed' ? 9 : 10)} className="px-6 py-12 text-center text-sm text-gray-500 font-semibold">
                         No denial claims in the current queue matching filters.
                       </td>
                     </tr>
@@ -1223,14 +1219,9 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                             </td>
                             
                             {activeTab === 'appealed' && (
-                              <>
-                                <td className="px-6 py-4 text-gray-900 font-semibold whitespace-nowrap max-w-[200px] truncate" title={c.appeal_reason || ''}>
-                                  {truncateReason(c.appeal_reason)}
-                                </td>
-                                <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
-                                  {c.appeal_date ? formatAppealDate(c.appeal_date) : ''}
-                                </td>
-                              </>
+                              <td className="px-6 py-4 text-gray-900 font-semibold whitespace-nowrap max-w-[200px] truncate" title={c.appeal_reason || ''}>
+                                {truncateReason(c.appeal_reason)}
+                              </td>
                             )}
 
                             {activeTab === 'resolved' && (
@@ -1249,17 +1240,6 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                               </>
                             )}
 
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${
-                                c.status === 'resolved' 
-                                  ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' 
-                                  : c.status === 'appealed' || c.status === 'in_appeal'
-                                  ? 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20'
-                                  : 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20'
-                              }`}>
-                                {c.status === 'in_appeal' ? 'in appeal' : c.status || 'open'}
-                              </span>
-                            </td>
                             {activeTab !== 'resolved' && (
                               <td className="px-6 py-4 text-right whitespace-nowrap">
                                 <div className="flex justify-end items-center gap-1.5">
@@ -1323,7 +1303,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                                     <button
                                       onClick={() => handleUpdateStatus(c.id, 'open')}
                                       disabled={updatingId === c.id}
-                                      className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100/80 disabled:opacity-40 rounded px-2.5 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                      className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
                                     >
                                       Reopen
                                     </button>
@@ -1336,7 +1316,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                           {/* Expanded Row */}
                           {expandedClaimId === c.id && (
                             <tr className="bg-gray-50/50">
-                              <td colSpan={activeTab === 'open' || activeTab === 'dismissed' ? 9 : 11} className="px-6 py-5 border-b border-gray-200">
+                              <td colSpan={activeTab === 'open' || activeTab === 'dismissed' ? 8 : (activeTab === 'appealed' ? 9 : 10)} className="px-6 py-5 border-b border-gray-200">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-xs md:text-sm">
                                   
                                   {/* Section 1: Financials */}
