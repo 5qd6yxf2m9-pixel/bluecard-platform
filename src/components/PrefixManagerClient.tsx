@@ -225,8 +225,8 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
 
         setLicenseSuccess(`${updatedCount} prefixes updated, ${skippedCount} prefixes not found and skipped.`)
         router.refresh()
-      } catch (err) {
-        setLicenseError(err instanceof Error ? err.message : 'An error occurred during file parsing.')
+      } catch {
+        setLicenseError('An error occurred during file parsing.')
       } finally {
         setLicenseUploading(false)
       }
@@ -271,16 +271,15 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
     setInlineError(null)
 
     try {
-      const matchKey = p.id ? { id: p.id } : { prefix: p.prefix }
       const { error: updateErr } = await supabase
         .from('alpha_prefix_reference')
         .update({
-          license_status: editStatus,
-          contracted_provider: editContracted,
+          license_status: editStatus.toLowerCase() as 'licensed' | 'unlicensed' | 'unknown',
+          contracted_provider: Boolean(editContracted),
           effective_start_date: editStartDate || null,
           effective_end_date: editEndDate || null
         })
-        .match(matchKey)
+        .eq('prefix', p.prefix)
 
       if (updateErr) throw new Error(updateErr.message)
 
@@ -289,8 +288,9 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
       setTimeout(() => {
         setEditingPrefix(null)
       }, 1000)
-    } catch (err) {
-      setInlineError(err instanceof Error ? err.message : 'Failed to update license details.')
+    } catch {
+      console.error('Failed to update license details in database for prefix:', p.prefix)
+      setInlineError('Failed to update license details in database. See console for details.')
     } finally {
       setSavingPrefix(null)
     }
