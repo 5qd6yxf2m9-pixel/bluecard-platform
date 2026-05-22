@@ -156,7 +156,6 @@ export default async function DashboardPage() {
       userEmail={user.email || ''} 
       clientId={profile.client_id}
       initialBatches={batches}
-      role={profile.role}
       stats={stats}
       chartData={chartData}
     />

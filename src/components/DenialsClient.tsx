@@ -749,71 +749,67 @@ export function DenialsClient({ clientId, userEmail, initialClaims, appealAnalyt
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans selection:bg-[#2563eb] selection:text-white">
       
       {/* Header */}
-      <header className="bg-[#0a1628] text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex justify-between items-center">
-          <div className="flex items-center space-x-4">
-            <Link 
-              href="/dashboard" 
-              className="text-gray-400 hover:text-white flex items-center space-x-2 text-sm font-semibold transition-colors"
-            >
-              <span>&larr;</span> <span>Back</span>
-            </Link>
-            <div className="flex items-center space-x-2">
-              <span className="text-2xl font-bold font-display tracking-tight text-white">
-                DenialLogic
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center space-x-5">
-            <span className="text-sm text-gray-400 font-medium">{userEmail}</span>
-            <button 
-              onClick={handleSignOut}
-              className="text-sm font-semibold border border-white/20 hover:bg-white/10 px-4 py-2 rounded-md transition-all duration-300"
-            >
-              Sign Out
-            </button>
-          </div>
+      <header className="bg-[#0a1628] h-[72px] w-full px-8 flex justify-between items-center text-white">
+        <div className="flex items-center space-x-4">
+          <Link 
+            href="/dashboard" 
+            className="text-gray-400 hover:text-white flex items-center space-x-2 text-sm font-semibold transition-colors"
+          >
+            <span>&larr;</span> <span>Back</span>
+          </Link>
+          <span className="text-[20px] font-bold font-display text-white">
+            DenialLogic
+          </span>
+        </div>
+        <div className="flex items-center space-x-6">
+          <span className="text-sm text-gray-400 font-medium">{userEmail}</span>
+          <button 
+            onClick={handleSignOut}
+            className="text-sm font-semibold border border-white/20 hover:bg-white/10 px-4 py-2 rounded-md text-white transition-all duration-300"
+          >
+            Sign Out
+          </button>
         </div>
       </header>
 
+      {/* Top-Level Tabs */}
+      <div className="bg-white border-b border-[#e2e8f0] px-8">
+        <nav className="-mb-px flex space-x-8" aria-label="Top Tabs">
+          <button
+            onClick={() => setActiveTopTab('workqueue')}
+            className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+              activeTopTab === 'workqueue'
+                ? 'border-[#0a1628] text-[#0a1628]'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            Work Queue
+          </button>
+          <button
+            onClick={() => setActiveTopTab('analytics')}
+            className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+              activeTopTab === 'analytics'
+                ? 'border-[#0a1628] text-[#0a1628]'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            Analytics
+          </button>
+          <button
+            onClick={() => setActiveTopTab('upload')}
+            className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+              activeTopTab === 'upload'
+                ? 'border-[#0a1628] text-[#0a1628]'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            Upload
+          </button>
+        </nav>
+      </div>
+
       {/* Main Body content */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full space-y-10">
-
-        {/* Top-Level Tabs */}
-        <div className="bg-white border-b border-gray-200 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 -mt-10 mb-6">
-          <nav className="-mb-px flex space-x-8" aria-label="Top Tabs">
-            <button
-              onClick={() => setActiveTopTab('workqueue')}
-              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
-                activeTopTab === 'workqueue'
-                  ? 'border-[#0a1628] text-[#0a1628]'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-              }`}
-            >
-              Work Queue
-            </button>
-            <button
-              onClick={() => setActiveTopTab('analytics')}
-              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
-                activeTopTab === 'analytics'
-                  ? 'border-[#0a1628] text-[#0a1628]'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-              }`}
-            >
-              Analytics
-            </button>
-            <button
-              onClick={() => setActiveTopTab('upload')}
-              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
-                activeTopTab === 'upload'
-                  ? 'border-[#0a1628] text-[#0a1628]'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-              }`}
-            >
-              Upload
-            </button>
-          </nav>
-        </div>
 
         {/* Alerts */}
         {error && (

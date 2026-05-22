@@ -86,7 +86,6 @@ interface DashboardClientProps {
   userEmail: string;
   clientId: string;
   initialBatches: BatchData[];
-  role?: string;
   stats: StatData;
   chartData: ChartData;
 }
@@ -95,7 +94,6 @@ export function DashboardClient({
   userEmail, 
   clientId, 
   initialBatches, 
-  role, 
   stats, 
   chartData 
 }: DashboardClientProps) {
@@ -446,71 +444,64 @@ export function DashboardClient({
   return (
     <div className="min-h-screen bg-white flex flex-col font-sans selection:bg-[#2563eb] selection:text-white">
       {/* HEADER */}
-      <header className="bg-[#0a1628] shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-4">
-            <Link href="/dashboard" className="text-white hover:text-gray-300 flex items-center space-x-2 text-sm font-semibold transition-colors">
-              <span>&larr;</span> <span>Back</span>
-            </Link>
-            <span className="text-xl font-bold text-white font-display">
-              BlueCardLogic
-            </span>
-            {role === 'admin' && (
-              <Link href="/admin" className="ml-4 text-sm font-semibold text-[#2563eb] hover:text-blue-400 transition-colors">
-                Admin Panel
-              </Link>
-            )}
-          </div>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-400 font-medium">{userEmail}</span>
-            <button 
-              onClick={handleSignOut} 
-              className="text-sm text-white font-semibold border border-white/20 hover:bg-white/10 px-3 py-1.5 rounded-md transition-colors"
-            >
-              Sign out
-            </button>
-          </div>
+      <header className="bg-[#0a1628] h-[72px] w-full px-8 flex justify-between items-center text-white">
+        <div className="flex items-center space-x-4">
+          <Link href="/dashboard" className="text-gray-400 hover:text-white flex items-center space-x-2 text-sm font-semibold transition-colors">
+            <span>&larr;</span> <span>Back</span>
+          </Link>
+          <span className="text-[20px] font-bold text-white font-display">
+            BlueCardLogic
+          </span>
+        </div>
+        <div className="flex items-center space-x-6">
+          <span className="text-sm text-gray-400 font-medium">{userEmail}</span>
+          <button 
+            onClick={handleSignOut} 
+            className="text-sm font-semibold border border-white/20 hover:bg-white/10 px-4 py-2 rounded-md text-white transition-all duration-300"
+          >
+            Sign Out
+          </button>
         </div>
       </header>
 
+      {/* TOP LEVEL NAVIGATION TABS */}
+      <div className="bg-white border-b border-[#e2e8f0] px-8">
+        <nav className="-mb-px flex space-x-8" aria-label="Top Tabs">
+          <button
+            onClick={() => setActiveTopTab('batches')}
+            className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+              activeTopTab === 'batches'
+                ? 'border-[#0a1628] text-[#0a1628]'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            Batches
+          </button>
+          <button
+            onClick={() => setActiveTopTab('analytics')}
+            className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+              activeTopTab === 'analytics'
+                ? 'border-[#0a1628] text-[#0a1628]'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            Analytics
+          </button>
+          <button
+            onClick={() => setActiveTopTab('upload')}
+            className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
+              activeTopTab === 'upload'
+                ? 'border-[#0a1628] text-[#0a1628]'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            Upload
+          </button>
+        </nav>
+      </div>
+
       {/* MAIN CONTAINER */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
-        
-        {/* TOP LEVEL NAVIGATION TABS */}
-        <div className="bg-white border-b border-gray-200 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 -mt-10 mb-6">
-          <nav className="-mb-px flex space-x-8" aria-label="Top Tabs">
-            <button
-              onClick={() => setActiveTopTab('batches')}
-              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
-                activeTopTab === 'batches'
-                  ? 'border-[#0a1628] text-[#0a1628]'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-              }`}
-            >
-              Batches
-            </button>
-            <button
-              onClick={() => setActiveTopTab('analytics')}
-              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
-                activeTopTab === 'analytics'
-                  ? 'border-[#0a1628] text-[#0a1628]'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-              }`}
-            >
-              Analytics
-            </button>
-            <button
-              onClick={() => setActiveTopTab('upload')}
-              className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-semibold transition-colors ${
-                activeTopTab === 'upload'
-                  ? 'border-[#0a1628] text-[#0a1628]'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-              }`}
-            >
-              Upload
-            </button>
-          </nav>
-        </div>
 
         {/* TAB 1: BATCHES */}
         <div style={{ display: activeTopTab === 'batches' ? 'block' : 'none' }} className="space-y-6">
