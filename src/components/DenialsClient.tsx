@@ -593,6 +593,11 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
     }
   }
 
+  const truncateReason = (reason: string | null | undefined): string => {
+    if (!reason) return ''
+    return reason.length > 40 ? reason.slice(0, 40) + '...' : reason
+  }
+
   const renderOutcomeBadge = (outcome: string | null | undefined) => {
     if (!outcome) return null
     const outLower = outcome.toLowerCase().trim()
@@ -1146,21 +1151,32 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Aging</th>
                     <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Denied</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">CARC</th>
-                    {(activeTab === 'appealed' || activeTab === 'resolved') && (
+                    
+                    {activeTab === 'appealed' && (
                       <>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Appeal Reason</th>
                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Appeal Date</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Outcome</th>
-                        <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Recovered</th>
                       </>
                     )}
+
+                    {activeTab === 'resolved' && (
+                      <>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Outcome</th>
+                        <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Recovered</th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Resolution Date</th>
+                      </>
+                    )}
+
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                    {activeTab !== 'resolved' && (
+                      <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedClaims.length === 0 ? (
                     <tr>
-                      <td colSpan={activeTab === 'appealed' || activeTab === 'resolved' ? 12 : 9} className="px-6 py-12 text-center text-sm text-gray-500 font-semibold">
+                      <td colSpan={activeTab === 'open' || activeTab === 'dismissed' ? 9 : 11} className="px-6 py-12 text-center text-sm text-gray-500 font-semibold">
                         No denial claims in the current queue matching filters.
                       </td>
                     </tr>
@@ -1205,11 +1221,20 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                                 <div className="text-xs text-gray-500 mt-1 font-medium">{c.category}</div>
                               )}
                             </td>
-                            {(activeTab === 'appealed' || activeTab === 'resolved') && (
+                            
+                            {activeTab === 'appealed' && (
                               <>
+                                <td className="px-6 py-4 text-gray-900 font-semibold whitespace-nowrap max-w-[200px] truncate" title={c.appeal_reason || ''}>
+                                  {truncateReason(c.appeal_reason)}
+                                </td>
                                 <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
                                   {c.appeal_date ? formatAppealDate(c.appeal_date) : ''}
                                 </td>
+                              </>
+                            )}
+
+                            {activeTab === 'resolved' && (
+                              <>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   {renderOutcomeBadge(c.appeal_outcome)}
                                 </td>
@@ -1218,8 +1243,12 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                                     ? formatCurrency(Number(c.recovered_amount)) 
                                     : ''}
                                 </td>
+                                <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
+                                  {c.resolution_date ? formatAppealDate(c.resolution_date) : ''}
+                                </td>
                               </>
                             )}
+
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${
                                 c.status === 'resolved' 
@@ -1231,84 +1260,83 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                                 {c.status === 'in_appeal' ? 'in appeal' : c.status || 'open'}
                               </span>
                             </td>
-                             <td className="px-6 py-4 text-right whitespace-nowrap">
-                               <div className="flex justify-end items-center gap-1.5">
-                                 {activeTab === 'open' && (
-                                   <>
-                                     <button
-                                       onClick={() => {
-                                         setAppealingClaimId(c.id)
-                                         setSelectedAppealReason('')
-                                         setAppealNotes('')
-                                         setAppealError(null)
-                                       }}
-                                       disabled={updatingId === c.id}
-                                       className="bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
-                                     >
-                                       Appeal
-                                     </button>
-                                     <button
-                                       onClick={() => {
-                                         setResolvingClaimId(c.id)
-                                         setAppealOutcome('approved')
-                                         setRecoveredAmount(0)
-                                       }}
-                                       disabled={updatingId === c.id}
-                                       className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
-                                     >
-                                       Resolve
-                                     </button>
-                                     <button
-                                       onClick={() => handleUpdateStatus(c.id, 'dismissed')}
-                                       disabled={updatingId === c.id}
-                                       className="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
-                                     >
-                                       Dismiss
-                                     </button>
-                                   </>
-                                 )}
-                                 {activeTab === 'appealed' && (
-                                   <>
-                                     <button
-                                       onClick={() => {
-                                         setResolvingClaimId(c.id)
-                                         setAppealOutcome('approved')
-                                         setRecoveredAmount(0)
-                                       }}
-                                       disabled={updatingId === c.id}
-                                       className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
-                                     >
-                                       Resolve
-                                     </button>
-                                     <button
-                                       onClick={() => handleUpdateStatus(c.id, 'dismissed')}
-                                       disabled={updatingId === c.id}
-                                       className="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
-                                     >
-                                       Dismiss
-                                     </button>
-                                   </>
-                                 )}
-                                 {activeTab === 'resolved' && (
-                                   <span className="text-gray-400 text-xs italic font-medium">Read-only</span>
-                                 )}
-                                 {activeTab === 'dismissed' && (
-                                   <button
-                                     onClick={() => handleUpdateStatus(c.id, 'open')}
-                                     disabled={updatingId === c.id}
-                                     className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100/80 disabled:opacity-40 rounded px-2.5 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
-                                   >
-                                     Reopen
-                                   </button>
-                                 )}
-                               </div>
-                             </td>
+                            {activeTab !== 'resolved' && (
+                              <td className="px-6 py-4 text-right whitespace-nowrap">
+                                <div className="flex justify-end items-center gap-1.5">
+                                  {activeTab === 'open' && (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          setAppealingClaimId(c.id)
+                                          setSelectedAppealReason('')
+                                          setAppealNotes('')
+                                          setAppealError(null)
+                                        }}
+                                        disabled={updatingId === c.id}
+                                        className="bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                      >
+                                        Appeal
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setResolvingClaimId(c.id)
+                                          setAppealOutcome('approved')
+                                          setRecoveredAmount(0)
+                                        }}
+                                        disabled={updatingId === c.id}
+                                        className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                      >
+                                        Resolve
+                                      </button>
+                                      <button
+                                        onClick={() => handleUpdateStatus(c.id, 'dismissed')}
+                                        disabled={updatingId === c.id}
+                                        className="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                      >
+                                        Dismiss
+                                      </button>
+                                    </>
+                                  )}
+                                  {activeTab === 'appealed' && (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          setResolvingClaimId(c.id)
+                                          setAppealOutcome('approved')
+                                          setRecoveredAmount(0)
+                                        }}
+                                        disabled={updatingId === c.id}
+                                        className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                      >
+                                        Resolve
+                                      </button>
+                                      <button
+                                        onClick={() => handleUpdateStatus(c.id, 'dismissed')}
+                                        disabled={updatingId === c.id}
+                                        className="bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100/80 disabled:opacity-40 rounded px-2 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                      >
+                                        Dismiss
+                                      </button>
+                                    </>
+                                  )}
+                                  {activeTab === 'dismissed' && (
+                                    <button
+                                      onClick={() => handleUpdateStatus(c.id, 'open')}
+                                      disabled={updatingId === c.id}
+                                      className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100/80 disabled:opacity-40 rounded px-2.5 py-1 text-xs font-semibold transition-all duration-200 shadow-sm"
+                                    >
+                                      Reopen
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            )}
                           </tr>
                           
                           {/* Expanded Row */}
                           {expandedClaimId === c.id && (
                             <tr className="bg-gray-50/50">
-                              <td colSpan={activeTab === 'appealed' || activeTab === 'resolved' ? 12 : 9} className="px-6 py-5 border-b border-gray-200">
+                              <td colSpan={activeTab === 'open' || activeTab === 'dismissed' ? 9 : 11} className="px-6 py-5 border-b border-gray-200">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-xs md:text-sm">
                                   
                                   {/* Section 1: Financials */}
