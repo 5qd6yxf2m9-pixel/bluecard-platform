@@ -54,59 +54,71 @@ function resolvePlanContract(
   const { product_type, charge_amount, cpt_code, rev_code } = claim
 
   // Step 1 — CPT lookup
-  if (cpt_code && cpt_code.trim() !== '') {
-    const contract = contractMap.get(`cpt+${planName}+${cpt_code}`)
-    if (contract) {
-      if (contract.base_rate !== null && contract.base_rate !== undefined) {
-        return {
-          rateBasis: `CPT ${cpt_code}`,
-          expectedAmount: Number(contract.base_rate),
-          reimbursementRate: 0
-        }
-      } else if (contract.percentage_of_charges !== null && contract.percentage_of_charges !== undefined) {
-        const pct = Number(contract.percentage_of_charges)
-        const factor = pct > 1 ? pct / 100 : pct
-        return {
-          rateBasis: `CPT ${cpt_code}`,
-          expectedAmount: Number(charge_amount) * factor,
-          reimbursementRate: factor
+  try {
+    if (cpt_code && cpt_code.trim() !== '') {
+      const contract = contractMap.get(`cpt+${planName}+${cpt_code}`)
+      if (contract) {
+        if (contract.base_rate !== null && contract.base_rate !== undefined) {
+          return {
+            rateBasis: `CPT ${cpt_code}`,
+            expectedAmount: Number(contract.base_rate),
+            reimbursementRate: 0
+          }
+        } else if (contract.percentage_of_charges !== null && contract.percentage_of_charges !== undefined) {
+          const pct = Number(contract.percentage_of_charges)
+          const factor = pct > 1 ? pct / 100 : pct
+          return {
+            rateBasis: `CPT ${cpt_code}`,
+            expectedAmount: Number(charge_amount) * factor,
+            reimbursementRate: factor
+          }
         }
       }
     }
+  } catch {
+    // Graceful fallback to next tier
   }
 
   // Step 2 — Rev code lookup
-  if (rev_code && rev_code.trim() !== '') {
-    const contract = contractMap.get(`rev+${planName}+${rev_code}`)
-    if (contract) {
-      if (contract.base_rate !== null && contract.base_rate !== undefined) {
-        return {
-          rateBasis: `Rev Code ${rev_code}`,
-          expectedAmount: Number(contract.base_rate),
-          reimbursementRate: 0
-        }
-      } else if (contract.percentage_of_charges !== null && contract.percentage_of_charges !== undefined) {
-        const pct = Number(contract.percentage_of_charges)
-        const factor = pct > 1 ? pct / 100 : pct
-        return {
-          rateBasis: `Rev Code ${rev_code}`,
-          expectedAmount: Number(charge_amount) * factor,
-          reimbursementRate: factor
+  try {
+    if (rev_code && rev_code.trim() !== '') {
+      const contract = contractMap.get(`rev+${planName}+${rev_code}`)
+      if (contract) {
+        if (contract.base_rate !== null && contract.base_rate !== undefined) {
+          return {
+            rateBasis: `Rev Code ${rev_code}`,
+            expectedAmount: Number(contract.base_rate),
+            reimbursementRate: 0
+          }
+        } else if (contract.percentage_of_charges !== null && contract.percentage_of_charges !== undefined) {
+          const pct = Number(contract.percentage_of_charges)
+          const factor = pct > 1 ? pct / 100 : pct
+          return {
+            rateBasis: `Rev Code ${rev_code}`,
+            expectedAmount: Number(charge_amount) * factor,
+            reimbursementRate: factor
+          }
         }
       }
     }
+  } catch {
+    // Graceful fallback to next tier
   }
 
   // Step 3 — Product type fallback
-  const fallback = contractMap.get(`product+${planName}+${product_type}`)
-  if (fallback) {
-    const rate = Number(fallback.reimbursement_rate || 0)
-    const expectedAmount = Number(charge_amount) * rate
-    return {
-      rateBasis: 'Product Type',
-      expectedAmount,
-      reimbursementRate: rate
+  try {
+    const fallback = contractMap.get(`product+${planName}+${product_type}`)
+    if (fallback) {
+      const rate = Number(fallback.reimbursement_rate || 0)
+      const expectedAmount = Number(charge_amount) * rate
+      return {
+        rateBasis: 'Product Type',
+        expectedAmount,
+        reimbursementRate: rate
+      }
     }
+  } catch {
+    // Graceful fallback
   }
 
   return undefined
@@ -317,17 +329,17 @@ function processClaim(
 
   return {
     claim_id: claim.id,
-    decision,
-    reason: finalReason,
-    recommended_plan: recommendedPlan,
-    alternate_plan: alternatePlan,
-    uplift_amount: Number(upliftAmount.toFixed(2)),
-    anthem_expected: anthemExpected || undefined,
-    blueshield_expected: blueshieldExpected || undefined,
-    confidence_score: totalScore,
-    financial_tier: financialTier,
+    decision: decision || 'manual_review',
+    reason: finalReason || '',
+    recommended_plan: recommendedPlan || 'Anthem',
+    alternate_plan: alternatePlan || undefined,
+    uplift_amount: isNaN(upliftAmount) ? 0 : Number(upliftAmount.toFixed(2)),
+    anthem_expected: anthemExpected !== null && !isNaN(anthemExpected) ? Number(anthemExpected.toFixed(2)) : 0,
+    blueshield_expected: blueshieldExpected !== null && !isNaN(blueshieldExpected) ? Number(blueshieldExpected.toFixed(2)) : 0,
+    confidence_score: totalScore !== undefined && totalScore !== null ? totalScore : 0,
+    financial_tier: financialTier || 'Tier 1 - Low',
     manual_review_code: manualReviewCode,
-    rate_basis: rateBasis
+    rate_basis: rateBasis || 'Product Type'
   }
 }
 
