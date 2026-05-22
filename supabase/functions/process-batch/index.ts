@@ -107,7 +107,7 @@ function processClaim(
   prefixMap: Map<string, Record<string, unknown>>,
   contractMap: Map<string, Record<string, unknown>>
 ): RoutingDecision {
-  const { charge_amount, product_type } = claim
+  const { product_type } = claim
 
   const anthemResolved = resolvePlanContract('Anthem', claim, contractMap)
   const bsResolved = resolvePlanContract('Blue Shield', claim, contractMap)

@@ -159,7 +159,7 @@ export async function processClain(
   prefixMap?: Map<string, Record<string, unknown>>,
   contractMap?: Map<string, Record<string, unknown>>
 ): Promise<RoutingDecision> {
-  const { charge_amount, product_type } = claim
+  const { product_type } = claim
 
   const anthemResolved = await resolvePlanContract('Anthem', claim, supabase, contractMap)
   const bsResolved = await resolvePlanContract('Blue Shield', claim, supabase, contractMap)
