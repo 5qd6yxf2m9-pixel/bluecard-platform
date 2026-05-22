@@ -516,42 +516,41 @@ export function DashboardClient({
         <div style={{ display: activeTopTab === 'batches' ? 'block' : 'none' }} className="space-y-6">
           
           {/* STAT BAR */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm flex flex-col md:flex-row justify-between items-stretch gap-4 md:gap-0">
+          <div className="bg-white rounded-xl border border-gray-200 py-3 px-6 shadow-sm flex flex-col md:flex-row justify-between items-stretch gap-4 md:gap-0">
             {/* Stat 1 */}
             <div className="flex-1 flex flex-col justify-center px-4">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Uplift Available</span>
-              <span className="text-2xl font-extrabold text-[#2563eb] mt-1">{formatCurrency(stats.totalUpliftAvailable)}</span>
+              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Total Uplift Available</span>
+              <span className="text-[20px] font-bold text-[#2563eb] mt-1">{formatCurrency(stats.totalUpliftAvailable)}</span>
             </div>
             <div className="hidden md:block w-px bg-gray-200"></div>
             {/* Stat 2 */}
             <div className="flex-1 flex flex-col justify-center px-4">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Approved Routings</span>
-              <span className="text-2xl font-extrabold text-[#16a34a] mt-1">{stats.approvedRoutings}</span>
+              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Approved Routings</span>
+              <span className="text-[20px] font-bold text-[#16a34a] mt-1">{stats.approvedRoutings}</span>
             </div>
             <div className="hidden md:block w-px bg-gray-200"></div>
             {/* Stat 3 */}
             <div className="flex-1 flex flex-col justify-center px-4">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Manual Review</span>
-              <span className="text-2xl font-extrabold text-[#d97706] mt-1">{stats.manualReview}</span>
+              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Manual Review</span>
+              <span className="text-[20px] font-bold text-[#d97706] mt-1">{stats.manualReview}</span>
             </div>
             <div className="hidden md:block w-px bg-gray-200"></div>
             {/* Stat 4 */}
             <div className="flex-1 flex flex-col justify-center px-4">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Claims</span>
-              <span className="text-2xl font-extrabold text-[#0a1628] mt-1">{stats.totalClaims}</span>
+              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Total Claims</span>
+              <span className="text-[20px] font-bold text-[#0a1628] mt-1">{stats.totalClaims}</span>
             </div>
             <div className="hidden md:block w-px bg-gray-200"></div>
             {/* Stat 5 */}
             <div className="flex-1 flex flex-col justify-center px-4">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Batches</span>
-              <span className="text-2xl font-extrabold text-[#0a1628] mt-1">{stats.activeBatches}</span>
+              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Active Batches</span>
+              <span className="text-[20px] font-bold text-[#0a1628] mt-1">{stats.activeBatches}</span>
             </div>
           </div>
 
           {/* Sub-tabs List */}
           <div className="flex justify-between items-end border-b border-gray-200 pb-5">
             <div className="flex flex-col space-y-2">
-              <h2 className="text-2xl font-bold text-[#0a1628] font-display">Batches</h2>
               <nav className="flex space-x-8" aria-label="Tabs">
                 <button
                   onClick={() => setTab('active')}
