@@ -507,7 +507,17 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
                                     type="date"
                                     value={editStartDate}
                                     onChange={e => setEditStartDate(e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1"
+                                    className="mt-1 block w-full focus:border-indigo-500 focus:ring-indigo-500"
+                                    style={{
+                                      color: '#0a1628',
+                                      backgroundColor: '#ffffff',
+                                      borderColor: '#e2e8f0',
+                                      borderWidth: '1px',
+                                      borderStyle: 'solid',
+                                      padding: '8px 12px',
+                                      fontSize: '14px',
+                                      borderRadius: '6px'
+                                    }}
                                   />
                                 </div>
 
@@ -517,7 +527,17 @@ export function PrefixManagerClient({ initialPrefixes }: { initialPrefixes: Alph
                                     type="date"
                                     value={editEndDate}
                                     onChange={e => setEditEndDate(e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1"
+                                    className="mt-1 block w-full focus:border-indigo-500 focus:ring-indigo-500"
+                                    style={{
+                                      color: '#0a1628',
+                                      backgroundColor: '#ffffff',
+                                      borderColor: '#e2e8f0',
+                                      borderWidth: '1px',
+                                      borderStyle: 'solid',
+                                      padding: '8px 12px',
+                                      fontSize: '14px',
+                                      borderRadius: '6px'
+                                    }}
                                   />
                                 </div>
                               </div>
