@@ -95,10 +95,23 @@ export const formatDOS = (dosStr: string | null | undefined): string => {
   }
 }
 
+export interface AppealAnalyticsProps {
+  hasAppeals: boolean;
+  successRate: number;
+  totalAppeals: number;
+  successfulAppeals: number;
+  avgDays: number;
+  hasAvgDays: boolean;
+  totalRecoveredVal: number;
+  preSum: number;
+  postSum: number;
+}
+
 interface DenialsClientProps {
   clientId: string;
   userEmail: string;
   initialClaims: DenialClaim[];
+  appealAnalytics?: AppealAnalyticsProps;
 }
 
 export interface DenialBatch {
@@ -111,7 +124,7 @@ export interface DenialBatch {
   created_at: string;
 }
 
-export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsClientProps) {
+export function DenialsClient({ clientId, userEmail, initialClaims, appealAnalytics }: DenialsClientProps) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -810,6 +823,71 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
             <div className="text-[10px] text-gray-400 font-semibold mt-1">From appealed claims</div>
           </div>
         </div>
+
+        {/* Appeal Analytics Section */}
+        {appealAnalytics?.hasAppeals && (
+          <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm space-y-6">
+            <div>
+              <h2 className="text-[18px] font-bold text-[#0a1628] font-display">Appeal Analytics</h2>
+              <p className="text-xs text-gray-500 mt-1">Based on submitted appeals</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
+              {/* Card 1 — Appeal Success Rate */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Appeal Success Rate</div>
+                <div 
+                  className="mt-2 text-2xl md:text-3xl font-extrabold font-display"
+                  style={{ color: appealAnalytics.successRate >= 50 ? '#16a34a' : '#dc2626' }}
+                >
+                  {appealAnalytics.successRate.toFixed(1)}%
+                </div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-1">
+                  {appealAnalytics.successfulAppeals} of {appealAnalytics.totalAppeals} appeals successful
+                </div>
+              </div>
+
+              {/* Card 2 — Avg Days to Resolution */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Days to Resolution</div>
+                <div 
+                  className="mt-2 text-2xl md:text-3xl font-extrabold font-display"
+                  style={{ 
+                    color: !appealAnalytics.hasAvgDays 
+                      ? '#0a1628' 
+                      : appealAnalytics.avgDays <= 30 
+                        ? '#16a34a' 
+                        : appealAnalytics.avgDays <= 60 
+                          ? '#d97706' 
+                          : '#dc2626' 
+                  }}
+                >
+                  {appealAnalytics.hasAvgDays ? `${appealAnalytics.avgDays} days` : 'N/A'}
+                </div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-1">From appeal to resolution</div>
+              </div>
+
+              {/* Card 3 — Total Recovered */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Recovered</div>
+                <div className="mt-2 text-2xl md:text-3xl font-extrabold text-[#16a34a] font-display">
+                  {formatCurrency(appealAnalytics.totalRecoveredVal)}
+                </div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-1">From appealed claims</div>
+              </div>
+
+              {/* Card 4 — Pre vs Post Appeal */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-6 shadow-sm flex flex-col justify-between min-h-[110px]">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pre vs Post Appeal</div>
+                <div className="mt-2 flex flex-col text-sm font-semibold text-[#0a1628] leading-tight">
+                  <span>Before: {formatCurrency(appealAnalytics.preSum)}</span>
+                  <span>After: {formatCurrency(appealAnalytics.postSum)}</span>
+                </div>
+                <div className="text-[10px] text-gray-400 font-semibold mt-1">Denied amount vs recovered</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Denial Upload / History Tabs */}
         <div className="bg-white border-b border-gray-200 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
