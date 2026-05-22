@@ -1,3 +1,6 @@
+// -- alter table claims add column if not exists cpt_code text;
+// -- alter table claims add column if not exists rev_code text;
+
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { DashboardClient, BatchData } from '@/components/DashboardClient'

@@ -28,6 +28,8 @@ export interface ClaimWithDecision {
   payer_name: string;
   charge_amount: number;
   status: string;
+  cpt_code?: string | null;
+  rev_code?: string | null;
   routing_decisions: RoutingDecisionData[];
 }
 
@@ -307,7 +309,9 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
             payer_name: row.payer_name,
             charge_amount: parseFloat(row.charge_amount) || 0,
             client_id: clientId,
-            status: 'pending'
+            status: 'pending',
+            cpt_code: row.cpt_code || null,
+            rev_code: row.rev_code || null
           }
         })
 
@@ -508,6 +512,9 @@ export function DashboardClient({ userEmail, clientId, initialBatches, role }: D
                       <input type="file" className="sr-only" accept=".csv" onChange={handleFileChange} disabled={uploading} />
                     </label>
                     <p className="text-xs text-gray-500">or drag and drop CSV files here</p>
+                    <p className="text-[10px] text-gray-400 mt-2">
+                      Required: patient_id, alpha_prefix, dos, product_type, payer_name, charge_amount — Optional: cpt_code, rev_code
+                    </p>
                   </div>
                 </div>
 

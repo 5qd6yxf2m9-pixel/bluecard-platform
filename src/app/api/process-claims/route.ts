@@ -15,6 +15,7 @@ interface RoutingDecisionInsert {
   confidence_score: number | null
   financial_tier: string | null
   manual_review_code: string | null
+  rate_basis: string | null
 }
 
 export async function POST(request: NextRequest) {
@@ -114,8 +115,12 @@ export async function POST(request: NextRequest) {
     const contractMap = new Map<string, Record<string, unknown>>()
     if (clientContracts) {
       clientContracts.forEach(c => {
-        if (c.plan_name && c.product_type) {
-          contractMap.set(`${c.plan_name}+${c.product_type}`, c as unknown as Record<string, unknown>)
+        if (c.rate_type === 'cpt' && c.cpt_code) {
+          contractMap.set(`cpt+${c.plan_name}+${c.cpt_code}`, c as unknown as Record<string, unknown>)
+        } else if (c.rate_type === 'rev_code' && c.rev_code) {
+          contractMap.set(`rev+${c.plan_name}+${c.rev_code}`, c as unknown as Record<string, unknown>)
+        } else if (c.product_type) {
+          contractMap.set(`product+${c.plan_name}+${c.product_type}`, c as unknown as Record<string, unknown>)
         }
       })
     }
@@ -168,6 +173,7 @@ export async function POST(request: NextRequest) {
           confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
           financial_tier: (decisionResult.financial_tier as string | undefined) || null,
           manual_review_code: (decisionResult.manual_review_code as string | undefined) || null,
+          rate_basis: decisionResult.rate_basis || null
         })
 
       if (insertError) {
@@ -316,6 +322,7 @@ export async function POST(request: NextRequest) {
         confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
         financial_tier: (decisionResult.financial_tier as string | undefined) || null,
         manual_review_code: (decisionResult.manual_review_code as string | undefined) || null,
+        rate_basis: decisionResult.rate_basis || null
       })
 
       processedClaimIds.push(claim.id)

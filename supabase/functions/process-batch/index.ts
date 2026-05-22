@@ -1,10 +1,12 @@
-// REMINDER: Run the following SQL migrations in Supabase console:
-// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS financial_tier text;
-// ALTER TABLE routing_decisions ADD COLUMN IF NOT EXISTS manual_review_code text;
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 
-import { SupabaseClient } from '@supabase/supabase-js'
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
-export interface Claim {
+interface Claim {
   id: string;
   client_id: string;
   alpha_prefix: string;
@@ -16,7 +18,7 @@ export interface Claim {
   rev_code?: string | null;
 }
 
-export interface RoutingDecision {
+interface RoutingDecision {
   claim_id?: string;
   decision: 'manual_review' | 'approved';
   reason: string;
@@ -31,47 +33,29 @@ export interface RoutingDecision {
   rate_basis?: string;
 }
 
-export function getFinancialTier(uplift: number): string {
-  if (uplift < 500) return "Tier 1 - Low"
-  if (uplift <= 5000) return "Tier 2 - Moderate"
-  if (uplift <= 25000) return "Tier 3 - High"
-  return "Tier 4 - Critical"
-}
-
 interface MatchedContract {
   rateBasis: string;
   expectedAmount: number;
   reimbursementRate: number;
 }
 
-async function resolvePlanContract(
+function getFinancialTier(uplift: number): string {
+  if (uplift < 500) return "Tier 1 - Low"
+  if (uplift <= 5000) return "Tier 2 - Moderate"
+  if (uplift <= 25000) return "Tier 3 - High"
+  return "Tier 4 - Critical"
+}
+
+function resolvePlanContract(
   planName: string,
   claim: Claim,
-  supabase: SupabaseClient,
-  contractMap?: Map<string, Record<string, unknown>>
-): Promise<MatchedContract | undefined> {
-  const { client_id, product_type, charge_amount, cpt_code, rev_code } = claim
+  contractMap: Map<string, Record<string, unknown>>
+): MatchedContract | undefined {
+  const { product_type, charge_amount, cpt_code, rev_code } = claim
 
   // Priority 1 — CPT-level rate
   if (cpt_code) {
-    let contract: Record<string, unknown> | null = null
-    if (contractMap) {
-      contract = (contractMap.get(`cpt+${planName}+${cpt_code}`) as Record<string, unknown>) || null
-    } else {
-      const { data } = await supabase
-        .from('plan_contracts')
-        .select('*')
-        .eq('client_id', client_id)
-        .eq('plan_name', planName)
-        .eq('cpt_code', cpt_code)
-        .eq('rate_type', 'cpt')
-        .limit(1)
-        .maybeSingle()
-      if (data) {
-        contract = data as unknown as Record<string, unknown>
-      }
-    }
-
+    const contract = contractMap.get(`cpt+${planName}+${cpt_code}`)
     if (contract) {
       const isPercentage = contract.rate_basis === 'percentage' || contract.rate_type === 'percentage' || (Number(contract.percentage_of_charges || 0) > 0 && !contract.base_rate)
       const expectedAmount = isPercentage
@@ -87,24 +71,7 @@ async function resolvePlanContract(
 
   // Priority 2 — Rev code rate
   if (rev_code) {
-    let contract: Record<string, unknown> | null = null
-    if (contractMap) {
-      contract = (contractMap.get(`rev+${planName}+${rev_code}`) as Record<string, unknown>) || null
-    } else {
-      const { data } = await supabase
-        .from('plan_contracts')
-        .select('*')
-        .eq('client_id', client_id)
-        .eq('plan_name', planName)
-        .eq('rev_code', rev_code)
-        .eq('rate_type', 'rev_code')
-        .limit(1)
-        .maybeSingle()
-      if (data) {
-        contract = data as unknown as Record<string, unknown>
-      }
-    }
-
+    const contract = contractMap.get(`rev+${planName}+${rev_code}`)
     if (contract) {
       const isPercentage = contract.rate_basis === 'percentage' || contract.rate_type === 'percentage' || (Number(contract.percentage_of_charges || 0) > 0 && !contract.base_rate)
       const expectedAmount = isPercentage
@@ -120,26 +87,8 @@ async function resolvePlanContract(
 
   // Priority 3 — DRG rate (placeholder/skip)
 
-  // Priority 4 — Product type rate
-  let fallback: Record<string, unknown> | null = null
-  if (contractMap) {
-    fallback = (contractMap.get(`product+${planName}+${product_type}`) as Record<string, unknown>) || null
-  } else {
-    const { data } = await supabase
-      .from('plan_contracts')
-      .select('*')
-      .eq('client_id', client_id)
-      .eq('plan_name', planName)
-      .eq('product_type', product_type)
-      .is('cpt_code', null)
-      .is('rev_code', null)
-      .limit(1)
-      .maybeSingle()
-    if (data) {
-      fallback = data as unknown as Record<string, unknown>
-    }
-  }
-
+  // Priority 4 — Product type fallback
+  const fallback = contractMap.get(`product+${planName}+${product_type}`)
   if (fallback) {
     const rate = Number(fallback.reimbursement_rate || 0)
     const expectedAmount = Number(charge_amount) * rate
@@ -153,16 +102,15 @@ async function resolvePlanContract(
   return undefined
 }
 
-export async function processClain(
-  claim: Claim, 
-  supabase: SupabaseClient,
-  prefixMap?: Map<string, Record<string, unknown>>,
-  contractMap?: Map<string, Record<string, unknown>>
-): Promise<RoutingDecision> {
+function processClaim(
+  claim: Claim,
+  prefixMap: Map<string, Record<string, unknown>>,
+  contractMap: Map<string, Record<string, unknown>>
+): RoutingDecision {
   const { charge_amount, product_type } = claim
 
-  const anthemResolved = await resolvePlanContract('Anthem', claim, supabase, contractMap)
-  const bsResolved = await resolvePlanContract('Blue Shield', claim, supabase, contractMap)
+  const anthemResolved = resolvePlanContract('Anthem', claim, contractMap)
+  const bsResolved = resolvePlanContract('Blue Shield', claim, contractMap)
 
   const contracts: { plan_name: string; reimbursement_rate: number }[] = []
   if (anthemResolved) {
@@ -181,24 +129,10 @@ export async function processClain(
     upliftAmount = Math.abs(anthemExpected - blueshieldExpected)
   }
 
-  // 1. Look up the alpha prefix in alpha_prefix_reference
-  let prefixData: Record<string, unknown> | undefined
+  // 1. Look up alpha prefix
+  const prefixData = prefixMap.get(claim.alpha_prefix)
 
-  if (prefixMap) {
-    prefixData = prefixMap.get(claim.alpha_prefix)
-  } else {
-    const { data: fallbackPrefixData } = await supabase
-      .from('alpha_prefix_reference')
-      .select('*')
-      .eq('prefix', claim.alpha_prefix)
-      .eq('is_active', true)
-      .single()
-    if (fallbackPrefixData) {
-      prefixData = fallbackPrefixData as unknown as Record<string, unknown>
-    }
-  }
-
-  // DOS Validation setup
+  // DOS Validation
   const claimDate = new Date(claim.dos)
   const today = new Date()
   const msPerDay = 24 * 60 * 60 * 1000
@@ -212,7 +146,7 @@ export async function processClain(
   const isMAorFEP = isMA || isFEP
   const hasNoContracts = !anthemResolved && !bsResolved
 
-  // 1. ELIGIBILITY CONFIDENCE (max 30 points)
+  // Eligibility score
   let eligibilityScore = 0
   const knownProducts = ['PPO', 'POS', 'HMO', 'EPO', 'MA', 'FEP']
 
@@ -241,9 +175,8 @@ export async function processClain(
 
   eligibilityScore = Math.min(30, eligibilityScore)
 
-  // 2. DOS/CONTRACT CONFIDENCE (max 25 points)
+  // DOS/Contract score
   let dosContractScore = 0
-
   if (anthemResolved && bsResolved) {
     dosContractScore += 10
   } else if (anthemResolved || bsResolved) {
@@ -262,9 +195,8 @@ export async function processClain(
 
   dosContractScore = Math.min(25, dosContractScore)
 
-  // 3. REIMBURSEMENT CONFIDENCE (max 25 points)
+  // Reimbursement score
   let reimbursementScore = 0
-
   if (anthemResolved && bsResolved) {
     if (upliftAmount > 500) {
       reimbursementScore += 25
@@ -281,7 +213,7 @@ export async function processClain(
 
   reimbursementScore = Math.min(25, reimbursementScore)
 
-  // 4. OPERATIONAL RISK (max 20 points)
+  // Operational risk
   let operationalRiskScore = 0
   const hasDosWarning = diffDays > 365
 
@@ -294,14 +226,10 @@ export async function processClain(
 
   operationalRiskScore = Math.min(20, operationalRiskScore)
 
-  // CAPPED TOTAL SCORE
   let totalScore = eligibilityScore + dosContractScore + reimbursementScore + operationalRiskScore
   totalScore = Math.max(0, Math.min(100, totalScore))
 
-  // Determine standard reason parts
   const reasonParts: string[] = []
-
-  // Assign decision
   let decision: 'approved' | 'manual_review' = 'approved'
   let manualReviewCode: string | undefined = undefined
 
@@ -329,7 +257,6 @@ export async function processClain(
     decision = 'manual_review'
     reasonParts.push(`Uncertain or unsafe confidence level (${totalScore}/100)`)
   } else {
-    // Approved Decision reasons
     if (anthemExpected !== null && blueshieldExpected !== null) {
       const chosenPlan = anthemExpected >= blueshieldExpected ? 'Anthem' : 'Blue Shield'
       reasonParts.push(`Routed to ${chosenPlan} for highest reimbursement`)
@@ -340,12 +267,10 @@ export async function processClain(
     }
   }
 
-  // Add age warning to reason if over 1 year
   if (hasDosWarning) {
     reasonParts.push('Warning: Date of service is over 1 year old - prefix may have changed')
   }
 
-  // Recommended and alternate plan setups
   let recommendedPlan: string | undefined = undefined
   let alternatePlan: string | undefined = undefined
 
@@ -363,7 +288,6 @@ export async function processClain(
     recommendedPlan = 'Blue Shield'
   }
 
-  // Determine rate basis
   let rateBasis = 'Product Type'
   if (recommendedPlan === 'Anthem' && anthemResolved) {
     rateBasis = anthemResolved.rateBasis
@@ -397,3 +321,185 @@ export async function processClain(
   }
 }
 
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ""
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ""
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+    }
+
+    const { batch_id, client_id } = await req.json()
+    if (!batch_id || !client_id) {
+      return new Response(JSON.stringify({ error: 'batch_id and client_id are required' }), { status: 400, headers: corsHeaders })
+    }
+
+    // Fetch active prefixes
+    const { data: prefixes } = await supabase
+      .from('alpha_prefix_reference')
+      .select('*')
+      .eq('is_active', true)
+
+    const prefixMap = new Map<string, Record<string, unknown>>()
+    if (prefixes) {
+      prefixes.forEach((p: Record<string, unknown>) => {
+        if (p.prefix) {
+          prefixMap.set(p.prefix as string, p)
+        }
+      })
+    }
+
+    // Fetch contracts
+    const { data: contractsData } = await supabase
+      .from('plan_contracts')
+      .select('*')
+      .eq('client_id', client_id)
+
+    const contractMap = new Map<string, Record<string, unknown>>()
+    if (contractsData) {
+      contractsData.forEach((c: Record<string, unknown>) => {
+        if (c.rate_type === 'cpt' && c.cpt_code) {
+          contractMap.set(`cpt+${c.plan_name}+${c.cpt_code}`, c)
+        } else if (c.rate_type === 'rev_code' && c.rev_code) {
+          contractMap.set(`rev+${c.plan_name}+${c.rev_code}`, c)
+        } else if (c.product_type) {
+          contractMap.set(`product+${c.plan_name}+${c.product_type}`, c)
+        }
+      })
+    }
+
+    // Fetch claims
+    const { data: rawClaims } = await supabase
+      .from('claims')
+      .select('*')
+      .eq('client_id', client_id)
+      .eq('batch_id', batch_id)
+
+    if (!rawClaims || rawClaims.length === 0) {
+      return new Response(JSON.stringify({ message: 'No claims found' }), { headers: corsHeaders })
+    }
+
+    // Patient duplicates matching
+    const patientIds = Array.from(new Set(rawClaims.map((c: Record<string, unknown>) => c.patient_id)))
+    const { data: otherClaims } = await supabase
+      .from('claims')
+      .select('patient_id, dos')
+      .eq('client_id', client_id)
+      .neq('batch_id', batch_id)
+      .in('patient_id', patientIds)
+
+    const duplicateClaimIds: string[] = []
+    const pendingClaims: Claim[] = []
+
+    for (const claim of rawClaims) {
+      if (claim.status === 'duplicate') continue
+
+      const isDuplicate = (otherClaims || []).some(
+        (oc: Record<string, unknown>) => oc.patient_id === claim.patient_id && oc.dos === claim.dos
+      )
+
+      if (isDuplicate) {
+        duplicateClaimIds.push(claim.id)
+      } else if (claim.status === 'pending') {
+        pendingClaims.push(claim as Claim)
+      }
+    }
+
+    if (duplicateClaimIds.length > 0) {
+      await supabase
+        .from('claims')
+        .update({ status: 'duplicate' })
+        .in('id', duplicateClaimIds)
+    }
+
+    if (pendingClaims.length === 0) {
+      await supabase
+        .from('batches')
+        .update({ status: 'open', approved_count: 0, manual_review_count: 0, total_uplift: 0 })
+        .eq('id', batch_id)
+      return new Response(JSON.stringify({ message: 'No pending claims to process' }), { headers: corsHeaders })
+    }
+
+    let processedCount = 0
+    let manualReviewCount = 0
+    let totalUplift = 0
+
+    const decisionsToInsert = []
+    const processedClaimIds = []
+
+    for (const claim of pendingClaims) {
+      const decisionResult = processClaim(claim, prefixMap, contractMap)
+
+      decisionsToInsert.push({
+        batch_id,
+        claim_id: claim.id,
+        decision: decisionResult.decision,
+        reason: decisionResult.reason,
+        recommended_plan: decisionResult.recommended_plan || null,
+        alternate_plan: decisionResult.alternate_plan || null,
+        uplift_amount: decisionResult.uplift_amount || null,
+        anthem_expected: decisionResult.anthem_expected || null,
+        blueshield_expected: decisionResult.blueshield_expected || null,
+        confidence_score: decisionResult.confidence_score !== undefined ? decisionResult.confidence_score : null,
+        financial_tier: decisionResult.financial_tier || null,
+        manual_review_code: decisionResult.manual_review_code || null,
+        rate_basis: decisionResult.rate_basis || null
+      })
+
+      processedClaimIds.push(claim.id)
+
+      if (decisionResult.decision === 'manual_review') {
+        manualReviewCount++
+      } else {
+        processedCount++
+      }
+      if (decisionResult.uplift_amount) {
+        totalUplift += decisionResult.uplift_amount
+      }
+    }
+
+    // Bulk insert decisions
+    if (decisionsToInsert.length > 0) {
+      await supabase
+        .from('routing_decisions')
+        .insert(decisionsToInsert)
+    }
+
+    // Bulk update claim statuses
+    if (processedClaimIds.length > 0) {
+      await supabase
+        .from('claims')
+        .update({ status: 'processed' })
+        .in('id', processedClaimIds)
+    }
+
+    // Update batch record
+    await supabase
+      .from('batches')
+      .update({
+        status: 'open',
+        approved_count: processedCount,
+        manual_review_count: manualReviewCount,
+        total_uplift: totalUplift
+      })
+      .eq('id', batch_id)
+
+    return new Response(JSON.stringify({
+      message: 'Processing complete',
+      processed: processedCount,
+      manual_review: manualReviewCount,
+      total: rawClaims.length
+    }), { headers: corsHeaders })
+
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    return new Response(JSON.stringify({ error: errorMsg }), { status: 500, headers: corsHeaders })
+  }
+})
