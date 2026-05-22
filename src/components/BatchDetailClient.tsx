@@ -16,6 +16,22 @@ interface BatchDetailClientProps {
   contracts: PlanContract[];
 }
 
+interface AuthConflictClaim {
+  id: string;
+  claim_id: string;
+  reason: string;
+  manual_review_code: string;
+  anthem_expected: number;
+  blueshield_expected: number;
+  uplift_amount: number;
+  patient_id?: string;
+  alpha_prefix?: string;
+  dos?: string;
+  product_type?: string;
+  auth_status?: string | null;
+  auth_payer?: string | null;
+}
+
 export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) {
   const [tab, setTab] = useState<'routing_decisions' | 'manual_review' | 'duplicates'>('routing_decisions')
   const [searchInput, setSearchInput] = useState('')
@@ -27,6 +43,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
   const [editingName, setEditingName] = useState(false)
   const [batchName, setBatchName] = useState(batch.name)
   const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null)
+  const [authConflictClaims, setAuthConflictClaims] = useState<AuthConflictClaim[]>([])
 
   const handleSaveBatchName = async () => {
     if (!batchName.trim()) return
@@ -211,10 +228,51 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
     }
   }
 
+  const fetchAuthConflictClaims = async () => {
+    try {
+      const { data: decisions, error: decError } = await supabase
+        .from('routing_decisions')
+        .select('id, claim_id, reason, manual_review_code, anthem_expected, blueshield_expected, uplift_amount')
+        .eq('batch_id', batch.id)
+        .eq('manual_review_code', 'MR-006')
+
+      if (decError) throw decError
+
+      if (!decisions || decisions.length === 0) {
+        setAuthConflictClaims([])
+        return
+      }
+
+      const claimIds = decisions.map(d => d.claim_id)
+      const { data: claimsData, error: claimsError } = await supabase
+        .from('claims')
+        .select('id, patient_id, alpha_prefix, dos, product_type, auth_status, auth_payer')
+        .in('id', claimIds)
+
+      if (claimsError) throw claimsError
+
+      const joined: AuthConflictClaim[] = decisions.map(d => {
+        const claim = (claimsData || []).find(c => c.id === d.claim_id)
+        return {
+          ...d,
+          patient_id: claim?.patient_id || '',
+          alpha_prefix: claim?.alpha_prefix || '',
+          dos: claim?.dos || '',
+          product_type: claim?.product_type || '',
+          auth_status: claim?.auth_status || '',
+          auth_payer: claim?.auth_payer || ''
+        }
+      })
+
+      setAuthConflictClaims(joined)
+    } catch { }
+  }
+
   // Trigger claim fetching and stats syncing when dependencies change
   useEffect(() => {
     void fetchClaims()
     void fetchStats()
+    void fetchAuthConflictClaims()
   }, [tab, page, search]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleManualRoute = async (decisionId: string, plan: string, overrideReason?: string) => {
@@ -234,6 +292,7 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
       // Refresh only the active tab's claims data and global stats count!
       await fetchClaims()
       await fetchStats()
+      await fetchAuthConflictClaims()
       setExpandedClaimId(null)
     } catch {
       alert('Failed to update routing decision.')
@@ -978,6 +1037,58 @@ export function BatchDetailClient({ batch, contracts }: BatchDetailClientProps) 
                                   </tr>
                                 )}
                               </Fragment>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 4: Auth Conflict */}
+                {authConflictClaims.length > 0 && (
+                  <div className="px-6">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <h4 className="text-base font-bold text-[#0a1628] font-display">
+                        Auth Conflict
+                      </h4>
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/10">
+                        {authConflictClaims.length}
+                      </span>
+                      <span className="text-xs text-gray-500 font-medium font-sans">
+                        · MR-006
+                      </span>
+                    </div>
+                    <p className="text-sm text-amber-700 bg-amber-50/50 border border-amber-100 rounded-md px-4 py-2 mb-4">
+                      Prior authorization conflict or mismatch detected. Review status and recommended payer details.
+                    </p>
+                    <div className="overflow-hidden border border-gray-200 rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-300">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Patient ID</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Prefix</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">DOS</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Product Type</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Auth Status</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Auth Payer</th>
+                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Reason</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {authConflictClaims.map(claim => {
+                            return (
+                              <tr key={claim.id}>
+                                <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{claim.patient_id}</td>
+                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.alpha_prefix}</td>
+                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.dos}</td>
+                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.product_type}</td>
+                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                  <span className="capitalize">{claim.auth_status ? claim.auth_status.replace('_', ' ') : '-'}</span>
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{claim.auth_payer || '-'}</td>
+                                <td className="px-3 py-4 text-sm text-gray-500 max-w-xs break-words">{claim.reason}</td>
+                              </tr>
                             )
                           })}
                         </tbody>

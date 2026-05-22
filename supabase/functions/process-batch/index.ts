@@ -16,6 +16,10 @@ interface Claim {
   charge_amount: number;
   cpt_code?: string | null;
   rev_code?: string | null;
+  auth_status?: string | null;
+  auth_payer?: string | null;
+  auth_dos_start?: string | null;
+  auth_dos_end?: string | null;
 }
 
 interface RoutingDecision {
@@ -252,7 +256,38 @@ function processClaim(
 
   operationalRiskScore = Math.min(20, operationalRiskScore)
 
-  let totalScore = eligibilityScore + dosContractScore + reimbursementScore + operationalRiskScore
+  let authAdjustment = 0
+  if (claim.auth_status !== undefined && claim.auth_status !== null) {
+    const authStatus = claim.auth_status.trim()
+    const authPayer = (claim.auth_payer || '').trim()
+
+    const anthemExp = anthemExpected !== null ? anthemExpected : 0
+    const bsExp = blueshieldExpected !== null ? blueshieldExpected : 0
+    const higherPlan = anthemExp >= bsExp ? 'Anthem' : 'Blue Shield'
+    const lowerPlan = anthemExp >= bsExp ? 'Blue Shield' : 'Anthem'
+
+    if (authStatus === 'not_required') {
+      authAdjustment = 5
+    } else if (authStatus === 'valid' && authPayer === 'Both') {
+      authAdjustment = 8
+    } else if (authStatus === 'valid' && authPayer === higherPlan) {
+      authAdjustment = 10
+    } else if (authStatus === 'valid' && authPayer === lowerPlan) {
+      authAdjustment = -25
+    } else if (authStatus === 'missing') {
+      authAdjustment = -35
+    } else if (authStatus === 'payer_mismatch') {
+      authAdjustment = -30
+    } else if (authStatus === 'dos_mismatch') {
+      authAdjustment = -25
+    } else if (authStatus === 'service_mismatch') {
+      authAdjustment = -20
+    } else if (authStatus === 'provider_mismatch') {
+      authAdjustment = -20
+    }
+  }
+
+  let totalScore = eligibilityScore + dosContractScore + reimbursementScore + operationalRiskScore + authAdjustment
   totalScore = Math.max(0, Math.min(100, totalScore))
 
   const reasonParts: string[] = []
@@ -317,6 +352,48 @@ function processClaim(
     recommendedPlan = 'Blue Shield'
   }
 
+  let customReason: string | undefined = undefined
+
+  if (claim.auth_status !== undefined && claim.auth_status !== null) {
+    const authStatus = claim.auth_status.trim()
+    const authPayer = (claim.auth_payer || '').trim()
+
+    const anthemExp = anthemExpected !== null ? anthemExpected : 0
+    const bsExp = blueshieldExpected !== null ? blueshieldExpected : 0
+    const higherPlan = anthemExp >= bsExp ? 'Anthem' : 'Blue Shield'
+    const lowerPlan = anthemExp >= bsExp ? 'Blue Shield' : 'Anthem'
+
+    if (authStatus === 'valid' && (authPayer === higherPlan || authPayer === 'Both')) {
+      reasonParts.push("Auth validated for recommended payer.")
+    } else if (authStatus === 'valid' && authPayer === lowerPlan) {
+      decision = 'manual_review'
+      manualReviewCode = 'MR-006'
+      customReason = `Authorization is tied to ${authPayer}, which models lower reimbursement. Routing to higher-paying payer may create denial risk. Auth Conflict flagged.`
+    } else if (authStatus === 'missing') {
+      decision = 'manual_review'
+      manualReviewCode = 'MR-006'
+      customReason = "Authorization required but not found. Claim held pending auth verification."
+    } else if (authStatus === 'not_required') {
+      reasonParts.push("No auth required for this product/service.")
+    } else if (authStatus === 'payer_mismatch') {
+      decision = 'manual_review'
+      manualReviewCode = 'MR-006'
+      customReason = "Auth payer does not match recommended routing payer. Manual review required."
+    } else if (authStatus === 'dos_mismatch') {
+      decision = 'manual_review'
+      manualReviewCode = 'MR-006'
+      customReason = "Authorization does not cover the date of service. DOS mismatch flagged."
+    } else if (authStatus === 'service_mismatch') {
+      decision = 'manual_review'
+      manualReviewCode = 'MR-006'
+      customReason = "Authorization does not match the billed service type. Service mismatch flagged."
+    } else if (authStatus === 'provider_mismatch') {
+      decision = 'manual_review'
+      manualReviewCode = 'MR-006'
+      customReason = "Authorization is tied to a different facility or provider. Entity mismatch flagged."
+    }
+  }
+
   let rateBasis = 'Product Type'
   if (recommendedPlan === 'Anthem' && anthemResolved) {
     rateBasis = anthemResolved.rateBasis
@@ -331,7 +408,7 @@ function processClaim(
   }
 
   reasonParts.push(`Rate basis: ${rateBasis}`)
-  const finalReason = reasonParts.join('|')
+  const finalReason = customReason ? customReason : reasonParts.join('|')
   const financialTier = getFinancialTier(upliftAmount)
 
   return {

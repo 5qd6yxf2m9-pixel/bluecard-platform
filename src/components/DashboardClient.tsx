@@ -43,6 +43,10 @@ export interface ClaimWithDecision {
   status: string;
   cpt_code?: string | null;
   rev_code?: string | null;
+  auth_status?: string | null;
+  auth_payer?: string | null;
+  auth_dos_start?: string | null;
+  auth_dos_end?: string | null;
   routing_decisions: RoutingDecisionData[];
 }
 
@@ -336,6 +340,13 @@ export function DashboardClient({
         if (batchError || !batch) throw new Error()
         createdBatchId = batch.id
 
+        const parseDateToISO = (dateStr: string | undefined | null) => {
+          if (!dateStr || dateStr.trim() === '') return null
+          const d = new Date(dateStr)
+          if (isNaN(d.getTime())) return null
+          return d.toISOString().split('T')[0] // YYYY-MM-DD
+        }
+
         const claimsToInsert = rows.map(row => {
           return {
             batch_id: batch.id,
@@ -348,7 +359,11 @@ export function DashboardClient({
             client_id: clientId,
             status: 'pending',
             cpt_code: row.cpt_code || null,
-            rev_code: row.rev_code || null
+            rev_code: row.rev_code || null,
+            auth_status: row.auth_status || null,
+            auth_payer: row.auth_payer || null,
+            auth_dos_start: parseDateToISO(row.auth_dos_start),
+            auth_dos_end: parseDateToISO(row.auth_dos_end)
           }
         })
 
