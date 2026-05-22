@@ -67,6 +67,7 @@ interface ModalPrefixData {
   state: string;
   is_active: boolean;
   program: string;
+  mail_address?: string | null;
   license_status: string;
   contracted_provider: boolean;
   effective_start_date?: string | null;
@@ -1498,13 +1499,13 @@ function ClaimDrilldownDrawer({
         setDecisionData(decision as ModalDecisionData)
 
         if (claim.alpha_prefix) {
-          const { data: prefix } = await supabase
+          const { data: prefixData } = await supabase
             .from('alpha_prefix_reference')
-            .select('plan_name, state, is_active, program, license_status, contracted_provider, effective_start_date, effective_end_date')
-            .eq('alpha_prefix', claim.alpha_prefix)
-            .maybeSingle()
+            .select('plan_name, state, program, is_active, mail_address, license_status, contracted_provider, effective_start_date, effective_end_date')
+            .eq('prefix', claim.alpha_prefix)
+            .single()
 
-          setPrefixData(prefix as ModalPrefixData)
+          setPrefixData(prefixData as ModalPrefixData)
         } else {
           setPrefixData(null)
         }
