@@ -189,12 +189,9 @@ export function DenialsClient({ clientId, userEmail, initialClaims, appealAnalyt
   }
 
   // Dynamic statistics calculations
-  const totalClaims = claims.length
   const totalBilled = claims.reduce((sum, c) => sum + (Number(c.billed_amount) || 0), 0)
   const totalPaid = claims.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0)
   const totalDeniedDollars = totalBilled - totalPaid
-  const denialRate = totalBilled > 0 ? (totalDeniedDollars / totalBilled) * 100 : 0
-  const recoverableOpportunities = claims.filter(c => c.recommended_action && c.recommended_action.trim() !== '').length
 
   const openCount = claims.filter(c => c.status === 'open' || !c.status).length
   const appealedCount = claims.filter(c => c.status === 'appealed' || c.status === 'in_appeal').length
