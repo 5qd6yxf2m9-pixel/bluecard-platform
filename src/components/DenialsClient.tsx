@@ -1139,7 +1139,7 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
               <table className={`min-w-full divide-y divide-gray-200 ${activeTab !== 'open' ? 'table-fixed' : ''}`}>
                 <thead className="bg-[#0a1628]/5">
                   <tr>
-                    <th className="w-10 px-4 py-4"></th>
+                    <th className="w-8 p-0 py-4 text-center"></th>
                     <th className={`${activeTab !== 'open' ? 'w-[15%]' : ''} px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider`}>Account</th>
                     <th className={`${activeTab !== 'open' ? 'w-[10%]' : ''} px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider`}>Payer</th>
                     <th className={`${activeTab !== 'open' ? 'w-[9%]' : ''} px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider`}>DOS</th>
@@ -1173,10 +1173,10 @@ export function DenialsClient({ clientId, userEmail, initialClaims }: DenialsCli
                       return (
                         <Fragment key={c.id}>
                           <tr className="hover:bg-gray-50/50 transition-colors text-xs md:text-sm">
-                            <td className="px-4 py-4 text-center">
+                            <td className="w-8 p-0 py-4 text-center">
                               <button
                                 onClick={() => setExpandedClaimId(expandedClaimId === c.id ? null : c.id)}
-                                className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                                className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none inline-flex items-center justify-center"
                               >
                                 <svg
                                   className={`w-4 h-4 transform transition-transform duration-200 ${expandedClaimId === c.id ? 'rotate-90' : ''}`}
