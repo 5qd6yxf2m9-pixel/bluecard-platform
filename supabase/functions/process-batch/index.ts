@@ -53,41 +53,51 @@ function resolvePlanContract(
 ): MatchedContract | undefined {
   const { product_type, charge_amount, cpt_code, rev_code } = claim
 
-  // Priority 1 — CPT-level rate
-  if (cpt_code) {
+  // Step 1 — CPT lookup
+  if (cpt_code && cpt_code.trim() !== '') {
     const contract = contractMap.get(`cpt+${planName}+${cpt_code}`)
     if (contract) {
-      const isPercentage = contract.rate_basis === 'percentage' || contract.rate_type === 'percentage' || (Number(contract.percentage_of_charges || 0) > 0 && !contract.base_rate)
-      const expectedAmount = isPercentage
-        ? Number(charge_amount) * (Number(contract.percentage_of_charges || 0) / 100)
-        : Number(contract.base_rate || 0)
-      return {
-        rateBasis: 'CPT',
-        expectedAmount,
-        reimbursementRate: isPercentage ? (Number(contract.percentage_of_charges || 0) / 100) : 0
+      if (contract.base_rate !== null && contract.base_rate !== undefined) {
+        return {
+          rateBasis: `CPT ${cpt_code}`,
+          expectedAmount: Number(contract.base_rate),
+          reimbursementRate: 0
+        }
+      } else if (contract.percentage_of_charges !== null && contract.percentage_of_charges !== undefined) {
+        const pct = Number(contract.percentage_of_charges)
+        const factor = pct > 1 ? pct / 100 : pct
+        return {
+          rateBasis: `CPT ${cpt_code}`,
+          expectedAmount: Number(charge_amount) * factor,
+          reimbursementRate: factor
+        }
       }
     }
   }
 
-  // Priority 2 — Rev code rate
-  if (rev_code) {
+  // Step 2 — Rev code lookup
+  if (rev_code && rev_code.trim() !== '') {
     const contract = contractMap.get(`rev+${planName}+${rev_code}`)
     if (contract) {
-      const isPercentage = contract.rate_basis === 'percentage' || contract.rate_type === 'percentage' || (Number(contract.percentage_of_charges || 0) > 0 && !contract.base_rate)
-      const expectedAmount = isPercentage
-        ? Number(charge_amount) * (Number(contract.percentage_of_charges || 0) / 100)
-        : Number(contract.base_rate || 0)
-      return {
-        rateBasis: 'Rev Code',
-        expectedAmount,
-        reimbursementRate: isPercentage ? (Number(contract.percentage_of_charges || 0) / 100) : 0
+      if (contract.base_rate !== null && contract.base_rate !== undefined) {
+        return {
+          rateBasis: `Rev Code ${rev_code}`,
+          expectedAmount: Number(contract.base_rate),
+          reimbursementRate: 0
+        }
+      } else if (contract.percentage_of_charges !== null && contract.percentage_of_charges !== undefined) {
+        const pct = Number(contract.percentage_of_charges)
+        const factor = pct > 1 ? pct / 100 : pct
+        return {
+          rateBasis: `Rev Code ${rev_code}`,
+          expectedAmount: Number(charge_amount) * factor,
+          reimbursementRate: factor
+        }
       }
     }
   }
 
-  // Priority 3 — DRG rate (placeholder/skip)
-
-  // Priority 4 — Product type fallback
+  // Step 3 — Product type fallback
   const fallback = contractMap.get(`product+${planName}+${product_type}`)
   if (fallback) {
     const rate = Number(fallback.reimbursement_rate || 0)
@@ -294,10 +304,10 @@ function processClaim(
   } else if (recommendedPlan === 'Blue Shield' && bsResolved) {
     rateBasis = bsResolved.rateBasis
   } else {
-    if (anthemResolved?.rateBasis === 'CPT' || bsResolved?.rateBasis === 'CPT') {
-      rateBasis = 'CPT'
-    } else if (anthemResolved?.rateBasis === 'Rev Code' || bsResolved?.rateBasis === 'Rev Code') {
-      rateBasis = 'Rev Code'
+    if (anthemResolved) {
+      rateBasis = anthemResolved.rateBasis
+    } else if (bsResolved) {
+      rateBasis = bsResolved.rateBasis
     }
   }
 
